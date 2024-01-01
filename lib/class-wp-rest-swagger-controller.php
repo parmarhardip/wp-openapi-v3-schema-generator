@@ -44,7 +44,7 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 		$basePath = rtrim( $basePath, '/' );
 
 		$swagger = array(
-			'openapi'    => '3.0.3',
+			'openapi'    => '3.1.0',
 			'info'       => $this->get_info(),
 			'servers'    => $this->get_server(),
 			'paths'      => array(),
@@ -53,6 +53,7 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 
 
 		$restServer = rest_get_server();
+
 
 		foreach ( $restServer->get_routes() as $endpointName => $endpoint ) {
 			// don't include self - that's a bit meta
@@ -65,6 +66,8 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 					if ( strpos( $endpointName, $filter_endpoint ) !== false ) {
 						return $endpointName;
 					}
+
+					return false;
 				} ) ) {
 					continue;
 				}
@@ -83,24 +86,22 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 				}
 			}
 
+			$route_options = $restServer->get_route_options( $endpointName );
 
-			$routeopt = $restServer->get_route_options( $endpointName );
-
-			if ( ! empty( $routeopt['schema'][1] ) ) {
-				$schema = call_user_func( array(
-					$routeopt['schema'][0],
-					$routeopt['schema'][1]
-				) );
+			if ( ! empty( $route_options['schema'][1] ) ) {
+				$schema = call_user_func( array( $route_options['schema'][0], $route_options['schema'][1] ) );
 				if ( isset( $schema['title'] ) && $schema['title'] ) {
-					$schema['title'] = str_replace( "/", "_", $routeopt['namespace'] ) . '_' . str_replace( " ", "_", $schema['title'] );
+					$schema['title'] = str_replace( "/", "_", $route_options['namespace'] ) . '_' . str_replace( " ", "_", $schema['title'] );
 
 					$swagger['components']['schemas'][ $schema['title'] ] = $this->schemaIntoDefinition( $schema );
 					$outputSchema                                         = array( '$ref' => '#/components/schemas/' . $schema['title'] );
 				}
 
 				if ( isset( $schema['tags'] ) && $schema['tags'] ) {
-					$tags             = array( $schema['tags']['name'] );
-					$this->all_tags[] = $schema['tags'];
+					$tags                          = array( $schema['tags']['name'] );
+					$object_content                = $this->prepare_object_content( $schema );
+					$schema['tags']['description'] = $schema['tags']['description'] . '<br><br>' . $object_content;
+					$this->all_tags[]              = $schema['tags'];
 				} else {
 					$tags = explode( '/', $endpointName );
 					$tags = array( $tags[1] );
@@ -145,7 +146,9 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 
 					$parameters   = $defaultidParams;
 					$param_schema = array();
-					$parameters   = $this->get_parameters( $endpointPart, $methodName, $parameters, $defaultidParams, $param_schema );
+					$get_data     = $this->get_parameters_and_request_body_schema( $endpointPart, $methodName, $parameters, $defaultidParams, $param_schema );
+					$parameters   = $get_data['parameter'];
+					$param_schema = $get_data['schema'];
 
 					if ( $methodName === 'POST' && ! empty( $param_schema ) ) {
 						$this->removeDuplicates( $param_schema );
@@ -184,6 +187,26 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 		return apply_filters( 'rest_prepare_meta_value', $response, $request );
 	}
 
+	private function prepare_object_content( $schema ) {
+		$object_content = "\n\n## {$schema['tags']['name']} object \n\n {$schema['tags']['object_description']} \n\n ";
+		$object_content .= '<ul>';
+		foreach ( $schema['properties'] as $key => $value ) {
+			$type           = is_array( $value['type'] ) ? implode( ' or ', $value['type'] ) : $value['type'];
+			$object_content .= '<li><strong>' . $key . '</strong> (<span>' . $type . '</span>) - ' . $value['description'] . '</li>';
+			if ( $value['properties'] ) {
+				$object_content .= '<ul>';
+				foreach ( $value['properties'] as $key => $value ) {
+					$type           = is_array( $value['type'] ) ? implode( ' or ', $value['type'] ) : $value['type'];
+					$object_content .= '<li><strong>' . $key . '</strong> (<span>' . $type . '</span>) - ' . $value['description'] . '</li>';
+				}
+				$object_content .= '</ul>';
+				continue;
+			}
+		}
+
+		return $object_content;
+	}
+
 	private function get_paths( $paths, $endpointPart, $paths_args ) {
 		extract( $paths_args );
 
@@ -211,8 +234,8 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 			'operationId' => $operationId
 		);
 		if ( $methodName === 'POST' && ! empty( $param_schema ) ) {
-			$paths[ $endpointName ][ strtolower( $methodName ) ]['x-codegen-request-body-name'] = 'body';
-			$paths[ $endpointName ][ strtolower( $methodName ) ]['requestBody']                 = array(
+			$paths[ $endpointName ][ strtolower( $methodName ) ]['x-bb-request-body-name'] = 'body';
+			$paths[ $endpointName ][ strtolower( $methodName ) ]['requestBody']            = array(
 				'content' => array(
 					'application/json' => array(
 						'schema' => array(
@@ -268,6 +291,14 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 			),
 			404       => array(
 				'description' => "object not found",
+				'content'     => array(
+					'application/json' => array(
+						'schema' => array( '$ref' => '#/components/schemas/wp_error' )
+					)
+				)
+			),
+			500       => array(
+				'description' => "server error",
 				'content'     => array(
 					'application/json' => array(
 						'schema' => array( '$ref' => '#/components/schemas/wp_error' )
@@ -412,7 +443,7 @@ Using the BuddyBoss App REST API you can develop additional screens and function
 		return $properties;
 	}
 
-	private function get_parameters( $endpointPart, $methodName, $parameters, $defaultidParams = array(), $schema = array() ) {
+	private function get_parameters_and_request_body_schema( $endpointPart, $methodName, $parameters, $defaultidParams = array(), $schema = array() ) {
 		$pathParamName = array_map( function ( $param ) {
 			return $param['name'];
 		}, $defaultidParams );
@@ -520,7 +551,7 @@ Using the BuddyBoss App REST API you can develop additional screens and function
 			}
 		}
 
-		return $parameters;
+		return array( 'parameter' => $parameters, 'schema' => $schema );
 	}
 
 
@@ -618,7 +649,6 @@ Using the BuddyBoss App REST API you can develop additional screens and function
 		if ( ! empty( $schema['context'] ) ) {
 			unset( $schema['context'] );
 		}
-		// if(!empty($schema['title']))unset($schema['title']);
 
 		if ( empty( $schema['properties'] ) ) {
 			$schema['properties'] = new stdClass();

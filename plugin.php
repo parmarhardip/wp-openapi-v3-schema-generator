@@ -27,43 +27,38 @@ add_action( 'rest_api_init', 'swagger_rest_api_init', 11 );
 
 add_action( 'init', 'load_hooks' );
 function load_hooks() {
-	add_filter( 'bp_rest_group_schema', 'cobeia_bp_rest_group_schema', 10, 1 );
-	add_filter( 'bp_rest_members_schema', 'cobeia_bp_rest_member_schema', 10, 1 );
+	//add_filter( 'bp_rest_group_schema', 'cobeia_bp_rest_group_schema', 10, 1 );
+	//add_filter( 'bp_rest_members_schema', 'cobeia_bp_rest_member_schema', 10, 1 );
 	add_filter( 'rest_post_item_schema', 'cobeia_bp_rest_post_schema', 10, 1 );
 	add_action( 'wp_enqueue_scripts', 'remove_starkers_styles', 20 );
-	add_filter( 'rest_endpoints', 'add_rest_method' );
+	add_filter( 'rest_endpoints', 'add_rest_openapi_data' );
 }
 
-function cobeia_bp_rest_group_schema( $schema ) {
-	$schema['tags']        = array(
-		'name'        => 'Social groups',
-		'description' => 'Groups are the cornerstone of BuddyPress. They provide a way for users to organize themselves around a common interest or activity, and to discuss issues that are relevant to the group. Groups can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups. Members can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups. Members can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups.'
-	);
-	$schema['description'] = get_bloginfo( 'description' );
+//function cobeia_bp_rest_group_schema( $schema ) {
+//	$schema['tags']        = array(
+//		'name'        => 'Social groups',
+//		'description' => 'Groups are the cornerstone of BuddyPress. They provide a way for users to organize themselves around a common interest or activity, and to discuss issues that are relevant to the group. Groups can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups. Members can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups. Members can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups.'
+//	);
+//
+//	return $schema;
+//}
 
-	return $schema;
-}
-
-function cobeia_bp_rest_member_schema( $schema ) {
-	$schema['tags']        = array(
-		'name'        => 'Members',
-		'description' => 'Members are the cornerstone of BuddyPress. They provide a way for users to organize themselves around a common interest or activity, and to discuss issues that are relevant to the group. Members can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups. Members can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups.'
-
-	);
-	$schema['description'] = get_bloginfo( 'description' );
-
-
-	return $schema;
-}
+//function cobeia_bp_rest_member_schema( $schema ) {
+//	$schema['tags']        = array(
+//		'name'        => 'Members',
+//		'description' => 'Members are the cornerstone of BuddyPress. They provide a way for users to organize themselves around a common interest or activity, and to discuss issues that are relevant to the group. Members can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups. Members can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups.'
+//
+//	);
+//
+//	return $schema;
+//}
 
 function cobeia_bp_rest_post_schema( $schema ) {
 	$schema['tags']        = array(
 		'name'        => 'WordPress posts',
-		'description' => 'Posts are the cornerstone of BuddyPress. They provide a way for users to organize themselves around a common interest or activity, and to discuss issues that are relevant to the group.  Posts can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups. Members can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups. Members can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups.'
-
+		'description' => "Posts are the cornerstone of BuddyPress. #They provide a way for users to organize themselves around a common interest or activity, and to discuss issues that are relevant to the group.  Posts can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups. Members can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups. Members can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups.",
+		'object_description' => "<p>Posts are the cornerstone of BuddyPress. They provide a way for users to organize themselves around a common interest or activity, and to discuss issues that are relevant to the group. Posts can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups. Members can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups. Members can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups.</p><p>Post object schema:</p>"
 	);
-	$schema['description'] = get_bloginfo( 'description' );
-
 	return $schema;
 }
 
@@ -99,7 +94,7 @@ define( 'COBEIA_ENDPOINTS_OPENAPI_DATA', array(
  *
  * @todo This function we use to add open api data for post endpoints.
  */
-function add_rest_method( $endpoints ) {
+function add_rest_openapi_data( $endpoints ) {
 	foreach ( $endpoints as $route => $handler ) {
 		// Todo: This added for filter some endpoints.
 		if ( defined( 'COBEIA_ENDPOINTS_OPENAPI_DATA' ) ) {
