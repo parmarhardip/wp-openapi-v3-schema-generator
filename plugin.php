@@ -61,7 +61,6 @@ function cobeia_bp_rest_post_schema( $schema ) {
 	);
 	return $schema;
 }
-
 define( 'COBEIA_API_SCHEMA', array(
 		'wp/v2',
 		'buddyboss/v1',
@@ -83,6 +82,7 @@ define( 'COBEIA_ENDPOINTS_OPENAPI_DATA', array(
 	'/wp/v2/posts',
 	'/wp/v2/posts/(?P<id>[\d]+)',
 ) );
+
 
 
 /**
@@ -168,17 +168,19 @@ function add_rest_openapi_data( $endpoints ) {
 
 
 function remove_starkers_styles() {
-	//Remove desired parent styles
-	wp_dequeue_style( 'screen' );
+	if ( ! empty( $_GET['doc-render'] ) ) {
+		//Remove desired parent styles
+		wp_dequeue_style( 'screen' );
 
 // dequeue the Twenty Twenty-One parent style
-	wp_dequeue_style( 'parent-style' );
-	wp_dequeue_style( 'buddyboss_legacy' );
-	wp_dequeue_style( 'bb_theme_block-buddypanel-style-css' );
-	wp_dequeue_style( 'buddyboss-theme-fonts' );
-	wp_dequeue_style( 'buddyboss-theme-css' );
-	wp_dequeue_style( 'buddyboss-theme-template' );
-	wp_dequeue_style( 'buddyboss-theme-buddypress' );
-	wp_dequeue_style( 'buddyboss-theme-learndash' );
+		wp_dequeue_style( 'parent-style' );
+		wp_dequeue_style( 'buddyboss_legacy' );
+		wp_dequeue_style( 'bb_theme_block-buddypanel-style-css' );
+		wp_dequeue_style( 'buddyboss-theme-fonts' );
+		wp_dequeue_style( 'buddyboss-theme-css' );
+		wp_dequeue_style( 'buddyboss-theme-template' );
+		wp_dequeue_style( 'buddyboss-theme-buddypress' );
+		wp_dequeue_style( 'buddyboss-theme-learndash' );
+	}
 }
 

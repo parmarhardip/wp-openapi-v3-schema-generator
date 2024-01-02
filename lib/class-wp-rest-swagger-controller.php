@@ -137,7 +137,7 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 			if ( empty( $swagger['paths'][ $endpointName ] ) ) {
 				$swagger['paths'][ $endpointName ] = array();
 			}
-
+			$properties = '';
 			foreach ( $endpoint as $endpointPart ) {
 				foreach ( $endpointPart['methods'] as $methodName => $method ) {
 					if ( in_array( $methodName, array( 'PUT', 'PATCH' ) ) ) {
@@ -193,7 +193,7 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 		foreach ( $schema['properties'] as $key => $value ) {
 			$type           = is_array( $value['type'] ) ? implode( ' or ', $value['type'] ) : $value['type'];
 			$object_content .= '<li><strong>' . $key . '</strong> (<span>' . $type . '</span>) - ' . $value['description'] . '</li>';
-			if ( $value['properties'] ) {
+			if ( isset( $value['properties'] ) ) {
 				$object_content .= '<ul>';
 				foreach ( $value['properties'] as $key => $value ) {
 					$type           = is_array( $value['type'] ) ? implode( ' or ', $value['type'] ) : $value['type'];
@@ -448,6 +448,7 @@ Using the BuddyBoss App REST API you can develop additional screens and function
 			return $param['name'];
 		}, $defaultidParams );
 
+		$key = '';
 		//Clean up parameters
 		foreach ( $endpointPart['args'] as $pname => $pdetails ) {
 			if ( isset( $parameters[ $key ] ) && $parameters[ $key ]['in'] == 'path' ) {
@@ -499,7 +500,7 @@ Using the BuddyBoss App REST API you can develop additional screens and function
 					if ( isset( $pdetails['items']['enum'] ) ) {
 						$parameter['schema']['items']['enum'] = $pdetails['items']['enum'];
 					}
-					if ( $pdetails['items']['type'] == 'object' && isset( $pdetails['items']['properties'] ) ) {
+					if ( isset( $pdetails['items']['properties'] ) && $pdetails['items']['type'] == 'object' ) {
 						$parameter['schema']['items']               = array(
 							'type'       => 'object',
 							'properties' => $pdetails['items']['properties']
@@ -507,7 +508,7 @@ Using the BuddyBoss App REST API you can develop additional screens and function
 						$parameter['schema']['items']['properties'] = $this->cleanParameter( $parameter['schema']['items']['properties'] );
 					}
 					if ( isset( $parameter['schema']['default'] ) && ! is_array( $parameter['schema']['default'] ) && $parameter['schema']['default'] != null ) {
-						$parameter['schema']['default'] = array( $parameter['default'] );
+						$parameter['schema']['default'] = isset( $parameter['default'] ) ? array( $parameter['default'] ) : array();
 					}
 				} elseif ( $pdetails['type'] == 'object' ) {
 					if ( isset( $pdetails['properties'] ) || ! empty( $pdetails['properties'] ) ) {
@@ -679,7 +680,7 @@ Using the BuddyBoss App REST API you can develop additional screens and function
 			if ( ! empty( $prop['items']['context'] ) ) {
 				unset( $prop['items']['context'] );
 			}
-			if ( is_array( $prop['default'] ) ) {
+			if ( isset( $prop['default'] ) && is_array( $prop['default'] ) ) {
 				unset( $prop['default'] );
 			}
 			if ( is_array( $prop['type'] ) ) {
