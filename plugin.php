@@ -32,6 +32,7 @@ function load_hooks() {
 	add_filter( 'rest_post_item_schema', 'cobeia_bp_rest_post_schema', 10, 1 );
 	add_action( 'wp_enqueue_scripts', 'remove_starkers_styles', 20 );
 	add_filter( 'rest_endpoints', 'add_rest_openapi_data' );
+	//add_filter('bp_core_register_common_scripts', 'cobeia_bp_core_register_common_scripts', 10, 1);
 }
 
 //function cobeia_bp_rest_group_schema( $schema ) {
@@ -56,7 +57,49 @@ function load_hooks() {
 function cobeia_bp_rest_post_schema( $schema ) {
 	$schema['tags']        = array(
 		'name'        => 'WordPress posts',
-		'description' => "Posts are the cornerstone of BuddyPress. #They provide a way for users to organize themselves around a common interest or activity, and to discuss issues that are relevant to the group.  Posts can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups. Members can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups. Members can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups.",
+		'description' => "<p>The WordPress REST API is a feature that allows developers to access and interact with WordPress sites remotely via HTTP requests. It enables you to retrieve, create, update, or delete content on a WordPress website using a standardized set of endpoints.</p>
+
+<p>When it comes to working with posts specifically, the WordPress REST API offers various endpoints to manage posts. Here are some of the key endpoints for posts:</p>
+
+<ol>
+	<li>
+	<p><strong>Retrieve Posts</strong>:</p>
+	<ul>
+		<li><code>GET /wp/v2/posts</code>: This endpoint retrieves a list of posts. You can use various parameters like <code>per_page</code>, <code>page</code>, <code>categories</code>, <code>tags</code>, etc., to filter the results.</li>
+	</ul>
+	</li>
+	<li>
+	<p><strong>Retrieve a Single Post</strong>:</p>
+	<ul>
+		<li><code>GET /wp/v2/posts/{id}</code>: This endpoint retrieves a single post by its ID.</li>
+	</ul>
+	</li>
+	<li>
+	<p><strong>Create a Post</strong>:</p>
+	<ul>
+		<li><code>POST /wp/v2/posts</code>: This endpoint allows you to create a new post by sending a POST request with the necessary data in the request body.</li>
+	</ul>
+	</li>
+	<li>
+	<p><strong>Update a Post</strong>:</p>
+	<ul>
+		<li><code>POST /wp/v2/posts/{id}</code> or <code>PUT /wp/v2/posts/{id}</code>: These endpoints update an existing post by its ID. You send a POST or PUT request with updated data in the request body.</li>
+	</ul>
+	</li>
+	<li>
+	<p><strong>Delete a Post</strong>:</p>
+	<ul>
+		<li><code>DELETE /wp/v2/posts/{id}</code>: This endpoint deletes a post by its ID.</li>
+	</ul>
+	</li>
+</ol>
+
+<p>Endpoints often return JSON data representing the posts in WordPress. The response includes information such as the post&#39;s ID, title, content, date, author, categories, tags, and more, depending on the specific request and the site&#39;s configuration.</p>
+
+<p>To access these endpoints, you typically need authentication. WordPress REST API supports various authentication methods such as cookie authentication, application passwords, OAuth, and JWT authentication, depending on the security needs of the application.</p>
+
+<p>Developers can utilize these endpoints to integrate WordPress content into various applications, build headless WordPress setups, create custom frontend experiences, and perform various other tasks involving WordPress posts.</p>
+",
 		'object_description' => "<p>Posts are the cornerstone of BuddyPress. They provide a way for users to organize themselves around a common interest or activity, and to discuss issues that are relevant to the group. Posts can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups. Members can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups. Members can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups.</p><p>Post object schema:</p>"
 	);
 	return $schema;
@@ -109,11 +152,13 @@ function add_rest_openapi_data( $endpoints ) {
 											$endpoints[ $route ][ $handler_index ]['openapi_data'] = array(
 												'description' => __( 'List WordPress posts', 'buddypress' ),
 												'summary'     => __( 'List WordPress posts', 'buddypress' ),
+												'tags' => array( 'WordPress posts' ),
 											);
 										} else {
 											$endpoints[ $route ][ $handler_index ]['openapi_data'] = array(
 												'description' => __( 'Get a Wordpress post', 'buddypress' ),
 												'summary'     => __( 'Get a Wordpress post', 'buddypress' ),
+												'tags' => array( 'WordPress posts' ),
 											);
 										}
 										break;
@@ -122,11 +167,13 @@ function add_rest_openapi_data( $endpoints ) {
 											$endpoints[ $route ][ $handler_index ]['openapi_data'] = array(
 												'description' => __( 'Create WordPress posts', 'buddypress' ),
 												'summary'     => __( 'Create WordPress posts', 'buddypress' ),
+												'tags' => array( 'WordPress posts' ),
 											);
 										} else {
 											$endpoints[ $route ][ $handler_index ]['openapi_data'] = array(
 												'description' => __( 'Update a WordPress post', 'buddypress' ),
 												'summary'     => __( 'Update a WordPress post', 'buddypress' ),
+												'tags' => array( 'WordPress posts' ),
 											);
 										}
 										break;
@@ -135,12 +182,14 @@ function add_rest_openapi_data( $endpoints ) {
 										$endpoints[ $route ][ $handler_index ]['openapi_data'] = array(
 											'description' => __( 'Update WordPress posts', 'buddypress' ),
 											'summary'     => __( 'Update WordPress posts', 'buddypress' ),
+											'tags' => array( 'WordPress posts' ),
 										);
 										break;
 									case 'DELETE':
 										$endpoints[ $route ][ $handler_index ]['openapi_data'] = array(
 											'description' => __( 'Delete WordPress posts', 'buddypress' ),
 											'summary'     => __( 'Delete WordPress posts', 'buddypress' ),
+											'tags' => array( 'WordPress posts' ),
 										);
 										break;
 									default:
@@ -150,6 +199,7 @@ function add_rest_openapi_data( $endpoints ) {
 												$endpoints[ $route ][ $handler_index ]['openapi_data'] = array(
 													'description' => __( 'Update a WordPress post', 'buddypress' ),
 													'summary'     => __( 'Update a WordPress post', 'buddypress' ),
+													'tags' => array( 'WordPress posts' ),
 												);
 											}
 										}
@@ -181,6 +231,8 @@ function remove_starkers_styles() {
 		wp_dequeue_style( 'buddyboss-theme-template' );
 		wp_dequeue_style( 'buddyboss-theme-buddypress' );
 		wp_dequeue_style( 'buddyboss-theme-learndash' );
+		wp_dequeue_script( 'bp-jquery-scroll-to-js' );
+wp_dequeue_script('screen');
+
 	}
 }
-

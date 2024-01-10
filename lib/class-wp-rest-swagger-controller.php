@@ -5,9 +5,6 @@
  */
 class WP_REST_Swagger_Controller extends WP_REST_Controller {
 
-	private $all_tags = array();
-
-
 	/**
 	 * Construct the API handler object.
 	 */
@@ -54,68 +51,25 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 
 		$restServer = rest_get_server();
 
-
 		foreach ( $restServer->get_routes() as $endpointName => $endpoint ) {
-			// don't include self - that's a bit meta
 			if ( $endpointName == '/' . $this->namespace . '/swagger' ) {
 				continue;
 			}
 
 			if ( defined( 'COBEIA_API_SCHEMA' ) ) {
-				if ( ! array_filter( COBEIA_API_SCHEMA, function ( $filter_endpoint ) use ( $endpointName ) {
-					if ( strpos( $endpointName, $filter_endpoint ) !== false ) {
-						return $endpointName;
-					}
-
-					return false;
-				} ) ) {
+				if ( ! $this->shouldIncludeEndpoint( $endpointName ) ) {
 					continue;
 				}
 
-				// Todo: This added for filter some endpoints.
-				if ( defined( 'COBEIA_ENDPOINTS_SCHEMA' ) ) {
-					if ( ! array_filter( COBEIA_ENDPOINTS_SCHEMA, function ( $filter_endpoint ) use ( $endpointName ) {
-						if ( strpos( $endpointName, $filter_endpoint ) !== false ) {
-							if ( $endpointName === $filter_endpoint ) { // Todo: Render only required endpoints.
-								return $endpointName;
-							}
-						}
-					} ) ) {
-						continue;
-					}
+				if ( defined( 'COBEIA_ENDPOINTS_SCHEMA' ) && ! $this->shouldIncludeSpecificEndpoint( $endpointName ) ) {
+					continue;
 				}
 			}
 
-			$route_options = $restServer->get_route_options( $endpointName );
-
-			if ( ! empty( $route_options['schema'][1] ) ) {
-				$schema = call_user_func( array( $route_options['schema'][0], $route_options['schema'][1] ) );
-				if ( isset( $schema['title'] ) && $schema['title'] ) {
-					$schema['title'] = str_replace( "/", "_", $route_options['namespace'] ) . '_' . str_replace( " ", "_", $schema['title'] );
-
-					$swagger['components']['schemas'][ $schema['title'] ] = $this->schemaIntoDefinition( $schema );
-					$outputSchema                                         = array( '$ref' => '#/components/schemas/' . $schema['title'] );
-				}
-
-				if ( isset( $schema['tags'] ) && $schema['tags'] ) {
-					$tags                          = array( $schema['tags']['name'] );
-					$object_content                = $this->prepare_object_content( $schema );
-					$schema['tags']['description'] = $schema['tags']['description'] . '<br><br>' . $object_content;
-					$this->all_tags[]              = $schema['tags'];
-				} else {
-					$tags = explode( '/', $endpointName );
-					$tags = array( $tags[1] );
-				}
-			} else {
-				//if there is no schema then it's a safe bet that this API call
-				//will not work - move to the next one.
-				continue;
-			}
-
-
+			$route_options   = $restServer->get_route_options( $endpointName );
 			$defaultidParams = array();
 			//Replace endpoints var and add to the parameters required
-			$endpointName = preg_replace_callback(
+			$endpointName   = preg_replace_callback(
 				'#\(\?P<(\w+?)>.*?\)(\?\))?#',
 				function ( $matches ) use ( &$defaultidParams ) {
 					$defaultidParams[] = array(
@@ -131,125 +85,337 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 				},
 				$endpointName
 			);
-			// $endpointName = str_replace(site_url(), '',rest_url($endpointName));
-			$endpointName = str_replace( $basePath, '', $endpointName );
-
-			if ( empty( $swagger['paths'][ $endpointName ] ) ) {
-				$swagger['paths'][ $endpointName ] = array();
+			$endpointName   = str_replace( $basePath, '', $endpointName );
+			$openapi_schema = array();
+			if ( ! empty( $route_options['schema'][1] ) ) {
+				$schema         = call_user_func( array( $route_options['schema'][0], $route_options['schema'][1] ) );
+				$openapi_schema = $this->processSchema( $schema, $swagger );
 			}
-			$properties = '';
-			foreach ( $endpoint as $endpointPart ) {
-				foreach ( $endpointPart['methods'] as $methodName => $method ) {
-					if ( in_array( $methodName, array( 'PUT', 'PATCH' ) ) ) {
-						continue;
-					} //duplicated by post
-
-					$parameters   = $defaultidParams;
-					$param_schema = array();
-					$get_data     = $this->get_parameters_and_request_body_schema( $endpointPart, $methodName, $parameters, $defaultidParams, $param_schema );
-					$parameters   = $get_data['parameter'];
-					$param_schema = $get_data['schema'];
-
-					if ( $methodName === 'POST' && ! empty( $param_schema ) ) {
-						$this->removeDuplicates( $param_schema );
-						$properties = $this->get_properties( $param_schema );
-					} else {
-						$this->removeDuplicates( $parameters );
-					}
-
-					$security = array(
-						array( 'accessToken' => array() )
-					);
-
-
-					$paths_args = array(
-						'endpointName' => $endpointName,
-						'methodName'   => $methodName,
-						'tags'         => $tags,
-						'parameters'   => $parameters,
-						'security'     => 'GET' !== $methodName ? $security : array(),
-						'responses'    => $this->get_responses( $endpointName, $methodName, $outputSchema ),
-						'properties'   => $properties,
-						'param_schema' => $param_schema
-					);
-
-					$swagger['paths'] = $this->get_paths( $swagger['paths'], $endpointPart, $paths_args );
-				}
-			}
+			$this->processPaths( $swagger, $endpointName, $endpoint, $openapi_schema, $defaultidParams );
 		}
-
-
-		$swagger['tags'] = $this->get_tags();
-
 
 		$response = rest_ensure_response( $swagger );
 
 		return apply_filters( 'rest_prepare_meta_value', $response, $request );
 	}
 
-	private function prepare_object_content( $schema ) {
-		$object_content = "\n\n## {$schema['tags']['name']} object \n\n {$schema['tags']['object_description']} \n\n ";
-		$object_content .= '<ul>';
-		foreach ( $schema['properties'] as $key => $value ) {
-			$type           = is_array( $value['type'] ) ? implode( ' or ', $value['type'] ) : $value['type'];
-			$object_content .= '<li><strong>' . $key . '</strong> (<span>' . $type . '</span>) - ' . $value['description'] . '</li>';
-			if ( isset( $value['properties'] ) ) {
-				$object_content .= '<ul>';
-				foreach ( $value['properties'] as $key => $value ) {
-					$type           = is_array( $value['type'] ) ? implode( ' or ', $value['type'] ) : $value['type'];
-					$object_content .= '<li><strong>' . $key . '</strong> (<span>' . $type . '</span>) - ' . $value['description'] . '</li>';
+	// New helper methods
+	private function shouldIncludeEndpoint( $endpointName ) {
+		return ! ! array_filter( COBEIA_API_SCHEMA, function ( $filter_endpoint ) use ( $endpointName ) {
+			return strpos( $endpointName, $filter_endpoint ) !== false;
+		} );
+	}
+
+	/**
+	 * // Todo: This added for filter some endpoints.
+	 * // Todo: Render only required endpoints.
+	 *
+	 * @param $endpointName
+	 *
+	 * @since [BBAPPVERSION]
+	 * @return bool
+	 */
+	private function shouldIncludeSpecificEndpoint( $endpointName ) {
+		return ! ! array_filter( COBEIA_ENDPOINTS_SCHEMA, function ( $filter_endpoint ) use ( $endpointName ) {
+			return $endpointName === $filter_endpoint;
+		} );
+	}
+
+	private function processSchema( $schema, &$swagger ) {
+		$openapi_schema                = $this->schemaIntoDefinition( $schema );
+		$schema_tag_description        = $this->prepare_object_content( $openapi_schema );
+		$schema['tags']['description'] = $schema['tags']['description'] . $schema_tag_description;
+		$swagger['tags'][]             = $schema['tags'];
+
+		return $openapi_schema;
+	}
+
+	private function processPaths( &$swagger, $endpointName, $endpoint, $openapi_schema, $defaultidParams ) {
+		if ( empty( $swagger['paths'][ $endpointName ] ) ) {
+			$swagger['paths'][ $endpointName ] = array();
+		}
+
+		foreach ( $endpoint as $endpointPart ) {
+			foreach ( $endpointPart['methods'] as $methodName => $method ) {
+				if ( in_array( $methodName, array( 'PUT', 'PATCH' ) ) ) {
+					continue;
+				} //duplicated by post
+
+				$operationId = array_reduce( explode( '/', preg_replace( "/{(\w+)}/", 'by/${1}', $endpointName ) ), array( $this, "compose_operation_name" ) );
+				$context     = 'view';
+				if ( $methodName === 'POST' ) {
+					$context     = 'edit';
+					$operationId = ucfirst( strtolower( $methodName ) ) . $operationId;
 				}
-				$object_content .= '</ul>';
+
+				$swagger['components']['schemas'][ $operationId ] = $this->componentSchema( $openapi_schema, $context );
+
+				$summary     = '';
+				$description = '';
+				$tags        = '';
+				if ( ! empty( $endpointPart['openapi_data'] ) ) {
+					if ( isset( $endpointPart['openapi_data']['summary'] ) ) {
+						$summary = $endpointPart['openapi_data']['summary'];
+					}
+					if ( isset( $endpointPart['openapi_data']['description'] ) ) {
+						$description = $endpointPart['openapi_data']['description'];
+					}
+					if ( isset( $endpointPart['openapi_data']['tags'] ) ) {
+						$tags = $endpointPart['openapi_data']['tags'];
+					}
+				}
+
+				$parameters  = $this->getParameters( $endpointPart, $methodName, $defaultidParams );
+				$requestBody = $this->requestBody( $endpointPart, $methodName );
+				$security    = array( array( 'accessToken' => array() ) );
+				$response    = $this->get_responses( $endpointName, $methodName, array( '$ref' => '#/components/schemas/' . $operationId ) );
+
+				$swagger['paths'][ $endpointName ][ strtolower( $methodName ) ] = array(
+					'summary'     => $summary,
+					'description' => $description,
+					'tags'        => $tags,
+					'parameters'  => $parameters,
+					'security'    => 'GET' !== $methodName ? $security : array(),
+					'responses'   => $response,
+					'operationId' => $operationId
+				);
+
+				if ( $methodName === 'POST' && ! empty( $requestBody ) ) {
+					$swagger['paths'][ $endpointName ][ strtolower( $methodName ) ]['x-bb-request-body-name'] = 'body';
+					$swagger['paths'][ $endpointName ][ strtolower( $methodName ) ]['requestBody']            = array(
+						'content' => array(
+							'application/json' => array(
+								'schema' => array(
+									'type'       => 'object',
+									'title'      => ucfirst( strtolower( $methodName ) ) . array_reduce( explode( '/', preg_replace( "/{(\w+)}/", 'by/${1}', $endpointName ) ),
+											array( $this, "compose_operation_name" ) ) . 'Input',
+									'properties' => $requestBody
+								)
+							)
+						)
+					);
+				}
+			}
+		}
+	}
+
+	private function componentSchema( $openapi_schema, $context = 'view') {
+
+		foreach ( $openapi_schema['properties'] as $property_key => $property ) {
+			if ( ! in_array( $context, $property['context'] ) ) {
+				unset( $openapi_schema['properties'][ $property_key ] );
+			}
+		}
+
+		return $openapi_schema;
+	}
+
+	private function requestBody( $endpointPart, $methodName ) {
+		$requestBody = array();
+		if ( $methodName === 'POST' && $endpointPart['args'] ) {
+			foreach ( $endpointPart['args'] as $key => $value ) {
+				$requestBody[ $key ] = array(
+					'type' => $value['type']
+				);
+				if ( ! empty( $value['description'] ) ) {
+					$requestBody[ $key ]['description'] = $value['description'];
+				}
+				if ( ! empty( $value['required'] ) ) {
+					$requestBody[ $key ]['required'] = $value['required'];
+				}
+
+				if ( ! empty( $value['example'] ) ) {
+					$requestBody[ $key ]['example'] = $value['example'];
+				}
+
+				if ( ! empty( $value['items'] ) ) {
+					$requestBody[ $key ]['items'] = $value['items'];
+				}
+				if ( ! empty( $value['enum'] ) ) {
+					$requestBody[ $key ]['enum'] = $value['enum'];
+				}
+				if ( ! empty( $value['properties'] ) ) {
+					$requestBody[ $key ]['properties'] = $value['properties'];
+				}
+			}
+		}
+
+		return $requestBody;
+	}
+
+	private function getParameters( $endpointPart, $methodName, $defaultidParams ) {
+		$parameters = $defaultidParams;
+
+		$pathParamName = array_map( function ( $param ) {
+			return $param['name'];
+		}, $defaultidParams );
+
+		$key_index = '';
+		if ( ! empty( $endpointPart['args'] ) ) {
+			foreach ( $endpointPart['args'] as $key => $value ) {
+				$parameter = array(
+					'name'    => $key,
+					'in'      => $methodName == 'POST' ? 'formData' : 'query',
+					'style'   => 'form',
+					'explode' => 'false'
+				);
+
+				if ( ! empty( $value['description'] ) ) {
+					$parameter['description'] = $value['description'];
+				}
+
+				if ( ! empty( $value['example'] ) ) {
+					$parameter['example'] = $value['example'];
+				}
+
+				if ( ! empty( $value['required'] ) ) {
+					$parameter['required'] = $value['required'];
+				}
+
+				if ( ! empty( $value['deprecated'] ) ) {
+					$parameter['deprecated'] = $value['deprecated'];
+				}
+
+				if ( ! empty( $value['type'] ) ) {
+					$parameter['schema']['type'] = $value['type'];
+				}
+				if ( ! empty( $value['format'] ) ) {
+					$parameter['schema']['format'] = $value['format'];
+				}
+				if ( ! empty( $value['default'] ) ) {
+					$parameter['schema']['default'] = $value['default'];
+				}
+				if ( ! empty( $value['enum'] ) ) {
+					$parameter['schema']['enum'] = array_values( $value['enum'] );
+				}
+
+				if ( ! empty( $value['minimum'] ) ) {
+					$parameter['schema']['minimum'] = $value['minimum'];
+					$parameter['schema']['format']  = 'number';
+				}
+				if ( ! empty( $value['maximum'] ) ) {
+					$parameter['schema']['maximum'] = $value['maximum'];
+					$parameter['schema']['format']  = 'number';
+				}
+				if ( is_array( $value['type'] ) ) {
+					if ( in_array( 'integer', $value['type'] ) ) {
+						$value['type'] = 'integer';
+					} elseif ( in_array( 'array', $value['type'] ) ) {
+						$value['type'] = 'array';
+					}
+				}
+
+				if ( ! empty( $value['type'] ) ) {
+					if ( $value['type'] == 'array' ) {
+						$parameter['schema']['type']  = $value['type'];
+						$parameter['schema']['items'] = array( 'type' => 'string' );
+						if ( isset( $value['items']['enum'] ) ) {
+							$parameter['schema']['items']['enum'] = $value['items']['enum'];
+						}
+						if ( isset( $value['items']['properties'] ) && $value['items']['type'] == 'object' ) {
+							$parameter['schema']['items']               = array(
+								'type'       => 'object',
+								'properties' => $value['items']['properties']
+							);
+							$parameter['schema']['items']['properties'] = $this->cleanParameter( $parameter['schema']['items']['properties'] );
+						}
+						if ( isset( $parameter['schema']['default'] ) && ! is_array( $parameter['schema']['default'] ) && $parameter['schema']['default'] != null ) {
+							$parameter['schema']['default'] = isset( $parameter['default'] ) ? array( $parameter['default'] ) : array();
+						}
+					} elseif ( $value['type'] == 'object' ) {
+						if ( isset( $value['properties'] ) || ! empty( $value['properties'] ) ) {
+							$parameter['schema']['type']       = 'object';
+							$parameter['schema']['properties'] = $value['properties'];
+							$parameter['schema']['properties'] = $this->cleanParameter( $parameter['schema']['properties'] );
+						} else {
+							$parameter['schema']['type'] = 'string';
+						}
+						if ( empty( $value['properties'] ) ) {
+							$parameter['schema']['type'] = 'string';
+						}
+					} elseif ( $value['type'] == 'date-time' ) {
+						$parameter['schema']['type']   = 'string';
+						$parameter['schema']['format'] = 'date-time';
+					} elseif ( is_array( $value['type'] ) && in_array( 'string', $value['type'] ) ) {
+						$parameter['schema']['type']   = 'string';
+						$parameter['schema']['format'] = 'date-time';
+					} elseif ( $value['type'] == 'null' ) {
+						$parameter['schema']['type']     = 'string';
+						$parameter['schema']['nullable'] = true;
+					} else {
+						$parameter['schema']['type'] = $value['type'];
+					}
+					if ( isset( $parameter['default'] ) && is_array( $parameter['default'] ) && $parameter['type'] == 'string' ) {
+						$parameter['schema']['default'] = "";
+					}
+				}
+
+				if ( ! in_array( $parameter['name'], $pathParamName ) ) {
+					if ( $methodName === 'POST' ) {
+						unset( $parameter['in'] );
+						unset( $parameter['explode'] );
+						unset( $parameter['style'] );
+						unset( $parameter['required'] );
+					} else {
+						unset( $parameter['type'] );
+						$parameters[] = $parameter;
+					}
+				} else {
+					$key_index = array_search( $key, array_column( $parameters, 'name' ) );
+					if ( isset( $parameters[ $key_index ] ) && $parameters[ $key_index ]['in'] == 'path' ) {
+						if ( strpos( $key, 'id' ) !== false ) {
+							$parameters[ $key_index ]["schema"]["type"] = "integer";
+							$parameters[ $key_index ]["description"]    = $value['description'];
+						}
+					}
+				}
+			}
+		}
+
+		return $parameters;
+	}
+
+	private function prepare_object_content( $schema ) {
+		$object_content = "\n\n## {$schema['tags']['name']} object \n\n {$schema['tags']['object_description']}";
+
+		$object_properties = '<ol>';
+		foreach ( $schema['properties'] as $property_key => $property ) {
+			if ( isset( $property['skip_openapi'] ) && true === $property['skip_openapi'] ) {
 				continue;
 			}
+			$type = is_array( $property['type'] ) ? implode( ' or ', $property['type'] ) : $property['type'];
+
+			if ( $type == 'object' ) {
+				$object_properties .= '<li><strong>' . $property_key . '</strong> (<span>' . $type . '</span>) : <p>' . $property['description'] . '</p>';
+				$object_properties .= $this->read_properties( $property['properties'] ) . '</li>';
+			} else {
+				$object_properties .= '<li><strong>' . $property_key . '</strong> (<span>' . $type . '</span>) : <p>' . $property['description'] . '</p></li>';
+			}
+		}
+		$object_properties .= '</ol>';
+
+		return $object_content . $object_properties;
+	}
+
+	private function read_properties( $properties ) {
+		$object_content = '';
+		if ( isset( $properties ) ) {
+			$object_content = '<ul>';
+			foreach ( $properties as $key => $value ) {
+				if ( $value['type'] == 'object' ) {
+					$object_content .= '<li><strong>' . $key . '</strong> (<span>' . $value['type'] . '</span>): <p>' . $value['description'] . '</p>';
+					$object_content .= $this->read_properties( $value['properties'] ) . '</li>';
+				} else {
+					if ( isset( $value['description'] ) ) {
+						$type           = is_array( $value['type'] ) ? implode( ' or ', $value['type'] ) : $value['type'];
+						$object_content .= '<li><strong>' . $key . '</strong> (<span>' . $type . '</span>): <p>' . $value['description'] . '</p></li>';
+					}
+				}
+			}
+			$object_content .= '</ul>';
 		}
 
 		return $object_content;
-	}
-
-	private function get_paths( $paths, $endpointPart, $paths_args ) {
-		extract( $paths_args );
-
-		$operationId = ucfirst( strtolower( $methodName ) ) . array_reduce( explode( '/', preg_replace( "/{(\w+)}/", 'by/${1}', $endpointName ) ),
-				array( $this, "compose_operation_name" ) );
-
-		$summary     = '';
-		$description = '';
-		if ( ! empty( $endpointPart['openapi_data'] ) ) {
-			if ( isset( $endpointPart['openapi_data']['summary'] ) ) {
-				$summary = $endpointPart['openapi_data']['summary'];
-			}
-			if ( isset( $endpointPart['openapi_data']['description'] ) ) {
-				$description = $endpointPart['openapi_data']['description'];
-			}
-		}
-
-		$paths[ $endpointName ][ strtolower( $methodName ) ] = array(
-			'summary'     => $summary,
-			'description' => $description,
-			'tags'        => $tags,
-			'parameters'  => $parameters,
-			'security'    => $security,
-			'responses'   => $responses,
-			'operationId' => $operationId
-		);
-		if ( $methodName === 'POST' && ! empty( $param_schema ) ) {
-			$paths[ $endpointName ][ strtolower( $methodName ) ]['x-bb-request-body-name'] = 'body';
-			$paths[ $endpointName ][ strtolower( $methodName ) ]['requestBody']            = array(
-				'content' => array(
-					'application/json' => array(
-						'schema' => array(
-							'type'       => 'object',
-							'title'      => ucfirst( strtolower( $methodName ) ) . array_reduce( explode( '/', preg_replace( "/{(\w+)}/", 'by/${1}', $endpointName ) ),
-									array( $this, "compose_operation_name" ) ) . 'Input',
-							'properties' => $properties
-						)
-					)
-				)
-			);
-		}
-
-		return $paths;
 	}
 
 
@@ -277,7 +443,7 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 				'description' => "successful operation",
 				'content'     => array(
 					'application/json' => array(
-						'schema' => $outputSchemaForMethod
+						'schema' => $outputSchemaForMethod,
 					)
 				)
 			),
@@ -285,7 +451,8 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 				'description' => "Invalid ID supplied",
 				'content'     => array(
 					'application/json' => array(
-						'schema' => array( '$ref' => '#/components/schemas/wp_error' )
+						'schema'  => array( '$ref' => '#/components/schemas/wp_error' ),
+						'example' => array( '$ref' => '#/components/examples/400' )
 					)
 				)
 			),
@@ -293,7 +460,8 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 				'description' => "object not found",
 				'content'     => array(
 					'application/json' => array(
-						'schema' => array( '$ref' => '#/components/schemas/wp_error' )
+						'schema'  => array( '$ref' => '#/components/schemas/wp_error' ),
+						'example' => array( '$ref' => '#/components/examples/404' )
 					)
 				)
 			),
@@ -301,7 +469,8 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 				'description' => "server error",
 				'content'     => array(
 					'application/json' => array(
-						'schema' => array( '$ref' => '#/components/schemas/wp_error' )
+						'schema'  => array( '$ref' => '#/components/schemas/wp_error' ),
+						'example' => array( '$ref' => '#/components/examples/500' )
 					)
 				)
 			),
@@ -334,23 +503,8 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 		return array(
 			'version'     => '1.0',
 			'title'       => 'BuddyBoss App REST API',
-			'description' => 'The BuddyBoss App REST API provides an interface for the mobile app to interact with WordPress by sending and receiving objects.
-
-When you request content from or send content to the API, the response will be returned in JSON format. Sending content is done in two formats, depending on the endpoint: "application/json" or "multipart/form-data". For how to use both formats you can check MDN Web Docs.
-
-Using the BuddyBoss App REST API you can develop additional screens and functionality in your app. For making custom requests from the BuddyBoss App, make sure you check the Fetching Data from APIs tutorial where we provide a function that will make this task easier.
-1.0.0 ',
+			'description' => 'BuddyBoss App REST API Documentation for BuddyBoss Platform and BuddyBoss App.',
 		);
-	}
-
-	private function get_title() {
-		$title = get_bloginfo( 'name' );
-		$host  = parse_url( site_url( '/' ), PHP_URL_HOST ) . ':' . parse_url( site_url( '/' ), PHP_URL_PORT );
-		if ( empty( $title ) ) {
-			$title = $host;
-		}
-
-		return $title;
 	}
 
 	private function get_server() {
@@ -381,7 +535,7 @@ Using the BuddyBoss App REST API you can develop additional screens and function
 							'properties' => array(
 								'status' => array(
 									'type' => 'integer'
-								)
+								),
 							)
 						)
 					)
@@ -395,166 +549,32 @@ Using the BuddyBoss App REST API you can develop additional screens and function
 					"description" => "To generate token, submit a POST request to `{{rootUrl}}buddyboss-app/auth/v2/jwt/login` endpoint. With username and password as the parameters.
 					It will validates the user credentials, and returns success response including a token if the authentication is correct or returns an error response if the authentication is failed."
 				)
+			),
+			'examples'         => array(
+				'400' => array(
+					'code'    => 'rest_invalid_param',
+					'message' => 'Invalid parameter(s): id',
+					'data'    => array(
+						'status' => 400
+					)
+				),
+				'404' => array(
+					'code'    => 'rest_no_route',
+					'message' => 'No route was found matching the URL and request method.',
+					'data'    => array(
+						'status' => 404
+					)
+				),
+				'500' => array(
+					'code'    => 'rest_server_error',
+					'message' => 'Server error.',
+					'data'    => array(
+						'status' => 500
+					)
+				),
 			)
 		);
 	}
-
-	/**
-	 * List of tags.
-	 *
-	 *
-	 * @since [BBAPPVERSION]
-	 * @return array
-	 */
-	private function get_tags() {
-		// Convert each array element to a string representation and filter out duplicates
-		$uniqueTags = array_map( "unserialize", array_unique( array_map( "serialize", $this->all_tags ) ) );
-
-		// Convert the serialized strings back to arrays
-		return array_values( $uniqueTags );
-	}
-
-
-	private function get_properties( $schema ) {
-		$properties = array();
-		foreach ( $schema as $index => $t ) {
-			$properties[ $t['name'] ] = $t;
-			if ( empty( $properties[ $t['name'] ]['type'] ) ) {
-				if ( ! empty( $properties[ $t['name'] ]['schema']['type'] ) ) {
-					$properties[ $t['name'] ]['type'] = $properties[ $t['name'] ]['schema']['type'];
-				} else {
-					$properties[ $t['name'] ]['type'] = 'string';
-				}
-			}
-			if ( ! empty( $properties[ $t['name'] ]['schema']['items'] ) ) {
-				$properties[ $t['name'] ]['items'] = $properties[ $t['name'] ]['schema']['items'];
-			}
-			if ( ! empty( $properties[ $t['name'] ]['schema']['enum'] ) ) {
-				$properties[ $t['name'] ]['enum'] = $properties[ $t['name'] ]['schema']['enum'];
-			}
-			if ( ! empty( $properties[ $t['name'] ]['schema']['properties'] ) ) {
-				$properties[ $t['name'] ]['properties'] = $properties[ $t['name'] ]['schema']['properties'];
-			}
-			unset( $properties[ $t['name'] ]['schema']['type'] );
-			unset( $properties[ $t['name'] ]['name'] );
-			unset( $properties[ $t['name'] ]['schema'] );
-		}
-
-		return $properties;
-	}
-
-	private function get_parameters_and_request_body_schema( $endpointPart, $methodName, $parameters, $defaultidParams = array(), $schema = array() ) {
-		$pathParamName = array_map( function ( $param ) {
-			return $param['name'];
-		}, $defaultidParams );
-
-		$key = '';
-		//Clean up parameters
-		foreach ( $endpointPart['args'] as $pname => $pdetails ) {
-			if ( isset( $parameters[ $key ] ) && $parameters[ $key ]['in'] == 'path' ) {
-				if ( strpos( $pname, 'id' ) !== false ) {
-					$parameters[ $key ]["schema"]["type"] = "integer";
-				}
-			}
-			$parameter = array(
-				'name'    => $pname,
-				'in'      => $methodName == 'POST' ? 'formData' : 'query',
-				'style'   => 'form',
-				'explode' => 'false'
-			);
-			$key       = array_search( $pname, array_column( $parameters, 'name' ) );
-			if ( ! empty( $pdetails['description'] ) ) {
-				$parameter['description'] = $pdetails['description'];
-			}
-			if ( ! empty( $pdetails['format'] ) ) {
-				$parameter['schema']['format'] = $pdetails['format'];
-			}
-			if ( ! empty( $pdetails['default'] ) ) {
-				$parameter['schema']['default'] = $pdetails['default'];
-			}
-			if ( ! empty( $pdetails['enum'] ) ) {
-				$parameter['schema']['enum'] = array_values( $pdetails['enum'] );
-			}
-			if ( ! empty( $pdetails['required'] ) ) {
-				$parameter['required'] = $pdetails['required'];
-			}
-			if ( ! empty( $pdetails['minimum'] ) ) {
-				$parameter['schema']['minimum'] = $pdetails['minimum'];
-				$parameter['schema']['format']  = 'number';
-			}
-			if ( ! empty( $pdetails['maximum'] ) ) {
-				$parameter['schema']['maximum'] = $pdetails['maximum'];
-				$parameter['schema']['format']  = 'number';
-			}
-			if ( is_array( $pdetails['type'] ) ) {
-				if ( in_array( 'integer', $pdetails['type'] ) ) {
-					$pdetails['type'] = 'integer';
-				} elseif ( in_array( 'array', $pdetails['type'] ) ) {
-					$pdetails['type'] = 'array';
-				}
-			}
-			if ( ! empty( $pdetails['type'] ) ) {
-				if ( $pdetails['type'] == 'array' ) {
-					$parameter['schema']['type']  = $pdetails['type'];
-					$parameter['schema']['items'] = array( 'type' => 'string' );
-					if ( isset( $pdetails['items']['enum'] ) ) {
-						$parameter['schema']['items']['enum'] = $pdetails['items']['enum'];
-					}
-					if ( isset( $pdetails['items']['properties'] ) && $pdetails['items']['type'] == 'object' ) {
-						$parameter['schema']['items']               = array(
-							'type'       => 'object',
-							'properties' => $pdetails['items']['properties']
-						);
-						$parameter['schema']['items']['properties'] = $this->cleanParameter( $parameter['schema']['items']['properties'] );
-					}
-					if ( isset( $parameter['schema']['default'] ) && ! is_array( $parameter['schema']['default'] ) && $parameter['schema']['default'] != null ) {
-						$parameter['schema']['default'] = isset( $parameter['default'] ) ? array( $parameter['default'] ) : array();
-					}
-				} elseif ( $pdetails['type'] == 'object' ) {
-					if ( isset( $pdetails['properties'] ) || ! empty( $pdetails['properties'] ) ) {
-						$parameter['schema']['type']       = 'object';
-						$parameter['schema']['properties'] = $pdetails['properties'];
-						$parameter['schema']['properties'] = $this->cleanParameter( $parameter['schema']['properties'] );
-					} else {
-						$parameter['schema']['type'] = 'string';
-					}
-					if ( ! isset( $pdetails['properties'] ) || empty( $pdetails['properties'] ) ) {
-						$parameter['schema']['type'] = 'string';
-					}
-				} elseif ( $pdetails['type'] == 'date-time' ) {
-					$parameter['schema']['type']   = 'string';
-					$parameter['schema']['format'] = 'date-time';
-				} elseif ( is_array( $pdetails['type'] ) && in_array( 'string', $pdetails['type'] ) ) {
-					$parameter['schema']['type']   = 'string';
-					$parameter['schema']['format'] = 'date-time';
-				} elseif ( $pdetails['type'] == 'null' ) {
-					$parameter['schema']['type']     = 'string';
-					$parameter['schema']['nullable'] = true;
-				} else {
-					$parameter['schema']['type'] = $pdetails['type'];
-				}
-				if ( isset( $parameter['default'] ) && is_array( $parameter['default'] ) && $parameter['type'] == 'string' ) {
-					$parameter['schema']['default'] = "";
-				}
-			}
-
-			if ( ! in_array( $parameter['name'], $pathParamName ) ) {
-				if ( $methodName === 'POST' ) {
-					unset( $parameter['in'] );
-					unset( $parameter['explode'] );
-					unset( $parameter['style'] );
-					unset( $parameter['required'] );
-					array_push( $schema, $parameter );
-				} else {
-					unset( $parameter['type'] );
-					$parameters[] = $parameter;
-				}
-			}
-		}
-
-		return array( 'parameter' => $parameters, 'schema' => $schema );
-	}
-
 
 	private function compose_operation_name( $carry, $part ) {
 		$carry .= ucfirst( strtolower( $part ) );
@@ -610,26 +630,6 @@ Using the BuddyBoss App REST API you can develop additional screens and function
 		return $properties;
 	}
 
-	private function removeDuplicates( $params ) {
-		$isdupblicate = array();
-		foreach ( $params as $index => $t ) {
-			if ( isset( $isdupblicate[ $t["name"] ] ) ) {
-				array_splice( $params, $index, 1 );
-				continue;
-			}
-			$isdupblicate[ $t["name"] ] = true;
-		}
-
-		$isdupblicate2 = array();
-		foreach ( $params as $index => $t ) {
-			if ( isset( $isdupblicate2[ $t["name"] ] ) ) {
-				array_splice( $params, $index, 1 );
-				continue;
-			}
-			$isdupblicate2[ $t["name"] ] = true;
-		}
-	}
-
 	/**
 	 * Turns the schema set up by the endpoint into a swagger definition.
 	 *
@@ -647,9 +647,9 @@ Using the BuddyBoss App REST API you can develop additional screens and function
 		if ( ! empty( $schema['readonly'] ) ) {
 			unset( $schema['readonly'] );
 		}
-		if ( ! empty( $schema['context'] ) ) {
-			unset( $schema['context'] );
-		}
+//		if ( ! empty( $schema['context'] ) ) {
+//			unset( $schema['context'] );
+//		}
 
 		if ( empty( $schema['properties'] ) ) {
 			$schema['properties'] = new stdClass();
@@ -671,15 +671,15 @@ Using the BuddyBoss App REST API you can develop additional screens and function
 			if ( ! empty( $prop['validate_callback'] ) ) {
 				unset( $prop['validate_callback'] );
 			}
-			if ( ! empty( $prop['context'] ) ) {
-				unset( $prop['context'] );
-			}
+//			if ( ! empty( $prop['context'] ) ) {
+//				unset( $prop['context'] );
+//			}
 			if ( ! empty( $prop['readonly'] ) ) {
 				unset( $prop['readonly'] );
 			}
-			if ( ! empty( $prop['items']['context'] ) ) {
-				unset( $prop['items']['context'] );
-			}
+//			if ( ! empty( $prop['items']['context'] ) ) {
+//				unset( $prop['items']['context'] );
+//			}
 			if ( isset( $prop['default'] ) && is_array( $prop['default'] ) ) {
 				unset( $prop['default'] );
 			}
@@ -758,13 +758,12 @@ Using the BuddyBoss App REST API you can develop additional screens and function
 			if ( isset( $prop['readonly'] ) ) {
 				unset( $prop['readonly'] );
 			}
-			if ( isset( $prop['context'] ) ) {
-				unset( $prop['context'] );
-			}
+//			if ( isset( $prop['context'] ) ) {
+//				unset( $prop['context'] );
+//			}
 		}
 
 		return $schema;
 	}
-
 
 }
