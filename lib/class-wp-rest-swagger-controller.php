@@ -199,8 +199,7 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 		}
 	}
 
-	private function componentSchema( $openapi_schema, $context = 'view') {
-
+	private function componentSchema( $openapi_schema, $context = 'view' ) {
 		foreach ( $openapi_schema['properties'] as $property_key => $property ) {
 			if ( ! in_array( $context, $property['context'] ) ) {
 				unset( $openapi_schema['properties'][ $property_key ] );
@@ -385,11 +384,16 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 			}
 			$type = is_array( $property['type'] ) ? implode( ' or ', $property['type'] ) : $property['type'];
 
+			$deprecated = '';
+			if ( isset( $property['deprecated'] ) ) {
+				$deprecated = '<b style="color: red"><i>(Deprecated)</i></b>';
+			}
+
 			if ( $type == 'object' ) {
-				$object_properties .= '<li><strong>' . $property_key . '</strong> (<span>' . $type . '</span>) : <p>' . $property['description'] . '</p>';
+				$object_properties .= '<li><strong>' . $property_key . '</strong> (<span>' . $type . '</span>) '.$deprecated.': <p>' . $property['description'] . '</p>';
 				$object_properties .= $this->read_properties( $property['properties'] ) . '</li>';
 			} else {
-				$object_properties .= '<li><strong>' . $property_key . '</strong> (<span>' . $type . '</span>) : <p>' . $property['description'] . '</p></li>';
+				$object_properties .= '<li><strong>' . $property_key . '</strong> (<span>' . $type . '</span>) '.$deprecated.': <p>' . $property['description'] . '</p></li>';
 			}
 		}
 		$object_properties .= '</ol>';
@@ -503,7 +507,45 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 		return array(
 			'version'     => '1.0',
 			'title'       => 'BuddyBoss App REST API',
-			'description' => 'BuddyBoss App REST API Documentation for BuddyBoss Platform and BuddyBoss App.',
+			'description' => 'BuddyBoss App REST API Documentation for BuddyBoss Platform and BuddyBoss App.<p><strong>Purpose:</strong></p>
+
+<ul>
+	<li>Provides a way for mobile apps (built using React Native or other frameworks) to interact with BuddyBoss Platform features and data.</li>
+	<li>Enables app developers to create custom mobile experiences for BuddyBoss communities.</li>
+</ul>
+
+<p><strong>Key Features:</strong></p>
+
+<ul>
+	<li><strong>Authentication:</strong>&nbsp;Handles user login,&nbsp;registration,&nbsp;and token management.</li>
+	<li><strong>Data Retrieval:</strong>&nbsp;Fetches users,&nbsp;groups,&nbsp;activities,&nbsp;posts,&nbsp;forums,&nbsp;private messages,&nbsp;notifications,&nbsp;and more.</li>
+	<li><strong>Content Creation:</strong>&nbsp;Allows users to create posts,&nbsp;comments,&nbsp;follow/unfollow,&nbsp;like/unlike,&nbsp;create groups,&nbsp;send messages,&nbsp;etc.</li>
+	<li><strong>Profile Management:</strong>&nbsp;Facilitates profile updates,&nbsp;avatar changes,&nbsp;settings adjustments,&nbsp;and friend management.</li>
+	<li><strong>Push Notifications:</strong>&nbsp;Supports sending push notifications to users through third-party services.</li>
+</ul>
+
+<p><strong>Endpoints (Examples):</strong></p>
+
+<ul>
+	<li><strong>Members:</strong>
+		<ul>
+		<li><code>/members</code></li>
+		<li><code>/members/(id)</code></li>
+		</ul>
+	</li>
+	<li><strong>Social groups:</strong>
+		<ul>
+		<li><code>/groups</code></li>
+		<li><code>/groups/(id)</code></li>
+		</ul>
+	</li>
+	<li><strong>Blog Posts:</strong>
+		<ul>
+		<li><code>/posts</code></li>
+		<li><code>/posts/(id)</code></li> 
+		</ul>
+	</li>
+</ul>',
 		);
 	}
 
@@ -550,7 +592,7 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 					It will validates the user credentials, and returns success response including a token if the authentication is correct or returns an error response if the authentication is failed."
 				)
 			),
-			'examples'         => array(
+			'examples'        => array(
 				'400' => array(
 					'code'    => 'rest_invalid_param',
 					'message' => 'Invalid parameter(s): id',

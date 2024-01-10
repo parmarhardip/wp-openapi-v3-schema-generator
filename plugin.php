@@ -57,50 +57,30 @@ function load_hooks() {
 function cobeia_bp_rest_post_schema( $schema ) {
 	$schema['tags']        = array(
 		'name'        => 'WordPress posts',
-		'description' => "<p>The WordPress REST API is a feature that allows developers to access and interact with WordPress sites remotely via HTTP requests. It enables you to retrieve, create, update, or delete content on a WordPress website using a standardized set of endpoints.</p>
+		'description' => "<p>The WordPress REST API allows developers to access and manipulate posts within your WordPress site through programmatic means. Here&#39;s a breakdown of its functionalities:</p>
 
-<p>When it comes to working with posts specifically, the WordPress REST API offers various endpoints to manage posts. Here are some of the key endpoints for posts:</p>
+<p><strong>Endpoints:</strong></p>
 
-<ol>
-	<li>
-	<p><strong>Retrieve Posts</strong>:</p>
-	<ul>
-		<li><code>GET /wp/v2/posts</code>: This endpoint retrieves a list of posts. You can use various parameters like <code>per_page</code>, <code>page</code>, <code>categories</code>, <code>tags</code>, etc., to filter the results.</li>
-	</ul>
-	</li>
-	<li>
-	<p><strong>Retrieve a Single Post</strong>:</p>
-	<ul>
-		<li><code>GET /wp/v2/posts/{id}</code>: This endpoint retrieves a single post by its ID.</li>
-	</ul>
-	</li>
-	<li>
-	<p><strong>Create a Post</strong>:</p>
-	<ul>
-		<li><code>POST /wp/v2/posts</code>: This endpoint allows you to create a new post by sending a POST request with the necessary data in the request body.</li>
-	</ul>
-	</li>
-	<li>
-	<p><strong>Update a Post</strong>:</p>
-	<ul>
-		<li><code>POST /wp/v2/posts/{id}</code> or <code>PUT /wp/v2/posts/{id}</code>: These endpoints update an existing post by its ID. You send a POST or PUT request with updated data in the request body.</li>
-	</ul>
-	</li>
-	<li>
-	<p><strong>Delete a Post</strong>:</p>
-	<ul>
-		<li><code>DELETE /wp/v2/posts/{id}</code>: This endpoint deletes a post by its ID.</li>
-	</ul>
-	</li>
-</ol>
+<ul>
+	<li><strong><code>/posts</code></strong>:&nbsp;Manage all posts - list,&nbsp;create,&nbsp;update,&nbsp;and delete.</li>
+	<li><strong><code>/posts/(id)</code></strong>:&nbsp;Access specific post data based on its ID.</li>
+</ul>
 
-<p>Endpoints often return JSON data representing the posts in WordPress. The response includes information such as the post&#39;s ID, title, content, date, author, categories, tags, and more, depending on the specific request and the site&#39;s configuration.</p>
+<p><strong>Data:</strong></p>
 
-<p>To access these endpoints, you typically need authentication. WordPress REST API supports various authentication methods such as cookie authentication, application passwords, OAuth, and JWT authentication, depending on the security needs of the application.</p>
+<ul>
+	<li>Post title,&nbsp;content,&nbsp;excerpt,&nbsp;and slug.</li>
+	<li>Post author,&nbsp;date,&nbsp;status,&nbsp;and visibility.</li>
+	<li>Featured image and media details.</li>
+	<li>Category and tag associations.</li>
+	<li>Custom post meta fields.</li>
+</ul>
 
-<p>Developers can utilize these endpoints to integrate WordPress content into various applications, build headless WordPress setups, create custom frontend experiences, and perform various other tasks involving WordPress posts.</p>
+<p><strong>Authentication:</strong></p>
+
+<p>Requires valid API credentials (username and password) or authentication tokens depending on your setup.</p>
 ",
-		'object_description' => "<p>Posts are the cornerstone of BuddyPress. They provide a way for users to organize themselves around a common interest or activity, and to discuss issues that are relevant to the group. Posts can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups. Members can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups. Members can be public, private or hidden. Public groups can be joined by anyone, and are indexed by search engines. Private groups are for members only, and hidden groups are not displayed in lists of groups.</p><p>Post object schema:</p>"
+		'object_description' => ""
 	);
 	return $schema;
 }
