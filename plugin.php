@@ -212,7 +212,7 @@ function remove_starkers_styles() {
 		wp_dequeue_style( 'buddyboss-theme-buddypress' );
 		wp_dequeue_style( 'buddyboss-theme-learndash' );
 		wp_dequeue_script( 'bp-jquery-scroll-to-js' );
-wp_dequeue_script('screen');
+		wp_dequeue_script('screen');
 
 	}
 }

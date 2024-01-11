@@ -91,6 +91,7 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 				$schema         = call_user_func( array( $route_options['schema'][0], $route_options['schema'][1] ) );
 				$openapi_schema = $this->processSchema( $schema, $swagger );
 			}
+
 			$this->processPaths( $swagger, $endpointName, $endpoint, $openapi_schema, $defaultidParams );
 		}
 
@@ -122,10 +123,12 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 	}
 
 	private function processSchema( $schema, &$swagger ) {
-		$openapi_schema                = $this->schemaIntoDefinition( $schema );
-		$schema_tag_description        = $this->prepare_object_content( $openapi_schema );
-		$schema['tags']['description'] = $schema['tags']['description'] . $schema_tag_description;
-		$swagger['tags'][]             = $schema['tags'];
+		$openapi_schema         = $this->schemaIntoDefinition( $schema );
+		$schema_tag_description = $this->prepare_object_content( $openapi_schema );
+		if ( ! empty( $schema['tags'] ) ) {
+			$schema['tags']['description'] = $schema['tags']['description'] . "<div>{$schema_tag_description}</div>";
+			$swagger['tags'][]             = $schema['tags'];
+		}
 
 		return $openapi_schema;
 	}
@@ -142,17 +145,28 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 				} //duplicated by post
 
 				$operationId = array_reduce( explode( '/', preg_replace( "/{(\w+)}/", 'by/${1}', $endpointName ) ), array( $this, "compose_operation_name" ) );
-				$context     = 'view';
+
+				// Generate embed schema.
+				if ( ! isset( $swagger['components']['schemas'][ $operationId . 'Embed' ] ) ) {
+					$swagger['components']['schemas'][ $operationId . 'Embed' ] = $this->componentSchema( $openapi_schema, 'embed' );
+				}
+
+				$context = 'view';
 				if ( $methodName === 'POST' ) {
 					$context     = 'edit';
 					$operationId = ucfirst( strtolower( $methodName ) ) . $operationId;
 				}
+				if ( ! isset( $swagger['components']['schemas'][ $operationId ] ) ) {
+					$swagger['components']['schemas'][ $operationId ] = $this->componentSchema( $openapi_schema, $context );
+				}
 
-				$swagger['components']['schemas'][ $operationId ] = $this->componentSchema( $openapi_schema, $context );
 
 				$summary     = '';
 				$description = '';
-				$tags        = '';
+				$tags        = array('No Schema');
+				if ( isset( $openapi_schema['title'] ) ) {
+					$tags = array( $openapi_schema['title'] );
+				}
 				if ( ! empty( $endpointPart['openapi_data'] ) ) {
 					if ( isset( $endpointPart['openapi_data']['summary'] ) ) {
 						$summary = $endpointPart['openapi_data']['summary'];
@@ -177,7 +191,7 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 					'parameters'  => $parameters,
 					'security'    => 'GET' !== $methodName ? $security : array(),
 					'responses'   => $response,
-					'operationId' => $operationId
+					'operationId' => ucfirst( strtolower( $methodName ) ) . $operationId
 				);
 
 				if ( $methodName === 'POST' && ! empty( $requestBody ) ) {
@@ -200,9 +214,11 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 	}
 
 	private function componentSchema( $openapi_schema, $context = 'view' ) {
-		foreach ( $openapi_schema['properties'] as $property_key => $property ) {
-			if ( ! in_array( $context, $property['context'] ) ) {
-				unset( $openapi_schema['properties'][ $property_key ] );
+		if ( ! empty( $openapi_schema['properties'] ) ) {
+			foreach ( $openapi_schema['properties'] as $property_key => $property ) {
+				if ( ! empty( $property['context'] ) && ! in_array( $context, $property['context'] ) ) {
+					unset( $openapi_schema['properties'][ $property_key ] );
+				}
 			}
 		}
 
@@ -213,9 +229,7 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 		$requestBody = array();
 		if ( $methodName === 'POST' && $endpointPart['args'] ) {
 			foreach ( $endpointPart['args'] as $key => $value ) {
-				$requestBody[ $key ] = array(
-					'type' => $value['type']
-				);
+				$requestBody[ $key ] = ! empty( $value['type'] ) ? array( 'type' => $value['type'] ) : array();
 				if ( ! empty( $value['description'] ) ) {
 					$requestBody[ $key ]['description'] = $value['description'];
 				}
@@ -296,7 +310,7 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 					$parameter['schema']['maximum'] = $value['maximum'];
 					$parameter['schema']['format']  = 'number';
 				}
-				if ( is_array( $value['type'] ) ) {
+				if ( isset( $value['type'] ) && is_array( $value['type'] ) ) {
 					if ( in_array( 'integer', $value['type'] ) ) {
 						$value['type'] = 'integer';
 					} elseif ( in_array( 'array', $value['type'] ) ) {
@@ -375,6 +389,9 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 	}
 
 	private function prepare_object_content( $schema ) {
+		if ( ! isset( $schema['tags']['name'] ) ) {
+			return '';
+		}
 		$object_content = "\n\n## {$schema['tags']['name']} object \n\n {$schema['tags']['object_description']}";
 
 		$object_properties = '<ol>';
@@ -390,10 +407,10 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 			}
 
 			if ( $type == 'object' ) {
-				$object_properties .= '<li><strong>' . $property_key . '</strong> (<span>' . $type . '</span>) '.$deprecated.': <p>' . $property['description'] . '</p>';
+				$object_properties .= '<li><strong>' . $property_key . '</strong> (<span>' . $type . '</span>) ' . $deprecated . ': <p>' . $property['description'] . '</p>';
 				$object_properties .= $this->read_properties( $property['properties'] ) . '</li>';
 			} else {
-				$object_properties .= '<li><strong>' . $property_key . '</strong> (<span>' . $type . '</span>) '.$deprecated.': <p>' . $property['description'] . '</p></li>';
+				$object_properties .= '<li><strong>' . $property_key . '</strong> (<span>' . $type . '</span>) ' . $deprecated . ': <p>' . $property['description'] . '</p></li>';
 			}
 		}
 		$object_properties .= '</ol>';
