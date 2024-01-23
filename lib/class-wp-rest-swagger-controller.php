@@ -46,6 +46,10 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 			'servers'    => $this->get_server(),
 			'paths'      => array(),
 			'components' => $this->get_default_components(),
+			'externalDocs'=>array(
+				'description'=>'BuddyBoss App Documentation',
+				'url' => 'https://buddyboss.gitbook.io/buddyboss-app/'
+			)
 		);
 
 
@@ -185,13 +189,17 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 				$response    = $this->get_responses( $endpointName, $methodName, array( '$ref' => '#/components/schemas/' . $operationId ) );
 
 				$swagger['paths'][ $endpointName ][ strtolower( $methodName ) ] = array(
-					'summary'     => $summary,
-					'description' => $description,
-					'tags'        => $tags,
-					'parameters'  => $parameters,
-					'security'    => 'GET' !== $methodName ? $security : array(),
-					'responses'   => $response,
-					'operationId' => ucfirst( strtolower( $methodName ) ) . $operationId
+					'summary'      => $summary,
+					'description'  => $description,
+					'tags'         => $tags,
+					'parameters'   => $parameters,
+					'security'     => 'GET' !== $methodName ? $security : array(),
+					'responses'    => $response,
+					'operationId'  => ucfirst( strtolower( $methodName ) ) . $operationId,
+					"externalDocs" => array(
+						"description" => "Social group.",
+						"url"         => "#tag/Social-groups"
+					)
 				);
 
 				if ( $methodName === 'POST' && ! empty( $requestBody ) ) {
@@ -203,7 +211,16 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 									'type'       => 'object',
 									'title'      => ucfirst( strtolower( $methodName ) ) . array_reduce( explode( '/', preg_replace( "/{(\w+)}/", 'by/${1}', $endpointName ) ),
 											array( $this, "compose_operation_name" ) ) . 'Input',
-									'properties' => $requestBody
+									'properties' => $requestBody,
+									'required'   => array_keys(
+										array_filter(
+											$requestBody,
+											function ( $item ) {
+												return ! empty( $item['required'] );
+											}
+										)
+									),
+
 								)
 							)
 						)
@@ -563,6 +580,7 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 		</ul>
 	</li>
 </ul>',
+			//'description' => "# Introduction\n[comment]: <> (x-product-description-placeholder)\nThe Rebilly API is built on HTTP and is RESTful.\nIt has predictable resource URLs and returns HTTP response codes to indicate errors.\nIt also accepts and returns JSON in the HTTP body.\nUse your favorite HTTP/REST library in your programming language when using this API,\nor use one of the Rebilly SDKs,\nwhich are available in [PHP](https://github.com/Rebilly/rebilly-php) and [JavaScript](https://github.com/Rebilly/rebilly-js-sdk).\n\nEvery action in the [Rebilly UI](https://app.rebilly.com) is supported by an API which is documented and available for use, so that you may automate any necessary workflows or processes.\nThis API reference documentation contains the most commonly integrated resources.\n\n# Authentication\n\nThis topic describes the different forms of authentication that are available in the Rebilly API, and how to use them.\n\nRebilly offers four forms of authentication: secret key, publishable key, JSON Web Tokens, and public signature key.\n\n- Secret API key: Use to make requests from the server side. Never share these keys. Keep them guarded and secure.\n- Publishable API key: Use in your client-side code to tokenize payment information.\n- JWT: Use to make short-life tokens that expire after a set period of time.\n\n<!-- ReDoc-Inject: <security-definitions> -->\n\n## Manage API keys\n\nTo create or manage API keys, select one of the following:\n\n- Use the Rebilly UI: see [Manage API keys](https://www.rebilly.com/docs/dev-docs/api-keys/#manage-api-keys)\n- Use the Rebilly API: see the [API key operations](https://www.rebilly.com/catalog/all/API-keys).\n\nFor more information on API keys, see [API keys](https://www.rebilly.com/docs/concepts-and-features/concept/api-keys).\n\n# Errors\nRebilly follows the error response format proposed in [RFC 9457](https://tools.ietf.org/html/rfc9457), which is also known as Problem Details for HTTP APIs. As with any API responses, your client must be prepared to gracefully handle additional members of the response.\n\n# SDKs\n\nRebilly provides a JavaScript SDK and a PHP SDK to help interact with the Rebilly API.\nHowever, no SDK is required to use the API.\n\nRebilly also provides [FramePay](https://www.rebilly.com/docs/developer-docs/framepay/),\na client-side iFrame-based solution, to help create payment tokens while minimizing PCI DSS compliance burdens\nand maximizing your customization ability.\n[FramePay](https://www.rebilly.com/docs/developer-docs/framepay/) interacts with the [payment tokens creation operation](https://www.rebilly.com/catalog/all/Payment-tokens/PostToken).\n\n## JavaScript SDK\n\nFor installation and usage instructions, see [SDKs](https://www.rebilly.com/docs/dev-docs/sdks/).\nAll JavaScript SDK code examples are included in the API reference documentation.\n\n## PHP SDK\n\nFor installation and usage instructions, see [SDKs](https://www.rebilly.com/docs/dev-docs/sdks/).\nAll SDK code examples are included in the API reference documentation.\nTo use them, you must configure the `$client` as follows:\n\n```php\n$client = new Rebilly\\Client([\n    'apiKey' => 'YourApiKeyHere',\n    'baseUrl' => 'https://api.rebilly.com',\n]);\n```\n\n# Using filter with collections\n\nRebilly provides collections filtering. Use the `?filter` parameter on collections to define which records should be shown in the response.\n\nFormat description:\n\n- Fields and values in the filter are separated with `:`: `?filter=firstName:John`.\n\n- Sub-fields are separated with `.`: `?filter=billingAddress.country:US`.\n\n- Multiple filters are separated with `;`: `?filter=firstName:John;lastName:Doe`. \\\n  They are joined with `AND` logic. Example: `firstName:John` AND `lastName:Doe`.\n\n- To use multiple values, use `,` as values separators: `?filter=firstName:John,Bob`. \\\n  Multiple values specified for a field are joined with `OR` logic. Example: `firstName:John` OR `firstName:Bob`.\n\n- To negate the filter, use `!`: `?filter=firstName:!John`.\n\n- To negate multiple values, use: `?filter=firstName:!John,!Bob`.\n  This filter rule excludes all `Johns` and `Bobs` from the response.\n\n- To use range filters, use: `?filter=amount:1..10`.\n\n- To use a gte (greater than or equals) filter, use: `?filter=amount:1..`.\n  This also works for datetime-based fields.\n\n- To use a lte (less than or equals) filter, use: `?filter=amount:..10`.\n  This also works for datetime-based fields.\n\n- To create [specified values lists](https://www.rebilly.com/catalog/all/Lists) and use them in filters, use: `?filter=firstName:@yourListName`. \\\n  You can also exclude list values: `?filter=firstName:!@yourListName`. \\\n  Use value lists to compare against a list of data when setting conditions for rules or binds,\n  or applying filters to data table segments.\n  Commonly used lists contain values related to conditions that target specific properties such as: customers, transactions, or BINs.\n\n- Datetime-based fields accept values formatted using RFC 3339. Example: `?filter=createdTime:2021-02-14T13:30:00Z`.\n\n# Expand to include embedded objects\n\nRebilly provides the ability to pre-load additional objects with a request.\n\nYou can use the `?expand` parameter on most requests to expand and include embedded objects within the `_embedded` property of the response.\nThe `_embedded` property contains an array of objects keyed by the expand parameter values.\nTo expand multiple objects, pass them as a comma-separated list of objects.\n\nExample request containing multiple objects:\n\n```\n?expand=recentInvoice,customer\n```\n\nExample response:\n\n```\n\"_embedded\": [\n    \"recentInvoice\": {...},\n    \"customer\": {...}\n]\n```\n\nExpand may be used on `GET`, `PATCH`, `POST`, `PUT` requests.\n\n# Limit on collections offset\n\nFor performance reasons, take note that we have a `1000` limit on `?offset=...`.\nFor example, attempting to retrieve a collection using `?offset=1001` or `?offset=2000` returns the same results as if you used `?offset=1000`.\n\nVisit our [Data Exports API](https://www.rebilly.com/catalog/all/Data-exports) for an asynchronous solution.\n\n# Get started\n\nThe full [Rebilly API](https://www.rebilly.com/catalog/all/) has over 500 operations.\nThis is likely more than you may need to implement your use cases.\nIf you would like to implement a particular use case,\n[contact Rebilly](https://www.rebilly.com/support/) for guidance and feedback on the best API operations to use for the task.\n\nTo integrate Rebilly, and learn about related resources and concepts,\nsee [Get started](https://www.rebilly.com/docs/dev-docs/get-started/).\n",
 		);
 	}
 
