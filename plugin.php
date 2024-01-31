@@ -87,6 +87,7 @@ function cobeia_bp_rest_post_schema( $schema ) {
 define( 'COBEIA_API_SCHEMA', array(
 		'wp/v2',
 		'buddyboss/v1',
+		'buddyboss-web/v1',
 	)
 );
 
@@ -98,6 +99,10 @@ define( 'COBEIA_ENDPOINTS_SCHEMA', array(
 	'/buddyboss/v1/groups/(?P<id>[\d]+)',
 	'/buddyboss/v1/members',
 	'/buddyboss/v1/members/(?P<id>[\d]+)',
+	'/buddyboss-web/v1/social-groups',
+	'/buddyboss-web/v1/social-groups/(?P<id>[\d]+)',
+	'/buddyboss-web/v1/members',
+	'/buddyboss-web/v1/members/(?P<id>[\d]+)',
 ) );
 
 

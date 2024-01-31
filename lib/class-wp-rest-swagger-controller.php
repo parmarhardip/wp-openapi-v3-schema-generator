@@ -405,52 +405,67 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 		return $parameters;
 	}
 
-	private function prepare_object_content( $schema ) {
-		if ( ! isset( $schema['tags']['name'] ) ) {
+	private function prepare_object_content($schema, $parentObjectName = '') {
+		if (!isset($schema['tags']['name'])) {
 			return '';
 		}
-		$object_content = "\n\n## {$schema['tags']['name']} object \n\n {$schema['tags']['object_description']}";
 
-		$object_properties = '<ol>';
-		foreach ( $schema['properties'] as $property_key => $property ) {
-			if ( isset( $property['skip_openapi'] ) && true === $property['skip_openapi'] ) {
+		$object_content = "\n\n## {$schema['tags']['name']} schema \n\n {$schema['tags']['object_description']}";
+
+		$object_properties = '<table border="1"><tr><th>Property</th><th>Type</th><th>Description</th><th>Context</th><th>Deprecated</th><th>Enum</th></tr>';
+
+		foreach ($schema['properties'] as $property_key => $property) {
+			if (isset($property['skip_openapi']) && true === $property['skip_openapi']) {
 				continue;
 			}
-			$type = is_array( $property['type'] ) ? implode( ' or ', $property['type'] ) : $property['type'];
 
-			$deprecated = '';
-			if ( isset( $property['deprecated'] ) ) {
-				$deprecated = '<b style="color: red"><i>(Deprecated)</i></b>';
-			}
+			$type = is_array($property['type']) ? implode(' or ', $property['type']) : $property['type'];
 
-			if ( $type == 'object' ) {
-				$object_properties .= '<li><strong>' . $property_key . '</strong> (<span>' . $type . '</span>) ' . $deprecated . ': <p>' . $property['description'] . '</p>';
-				$object_properties .= $this->read_properties( $property['properties'] ) . '</li>';
-			} else {
-				$object_properties .= '<li><strong>' . $property_key . '</strong> (<span>' . $type . '</span>) ' . $deprecated . ': <p>' . $property['description'] . '</p></li>';
+			$deprecated = isset( $property['deprecated'] ) ? 'Yes' : 'No';
+			$context    = isset( $property['context'] ) ? implode( ', ', $property['context'] ) : '';
+			$enum    = isset( $property['enum'] ) ? implode( ', ', $property['enum'] ) : '';
+
+			$object_properties .= '<tr>';
+			$object_properties .= "<td><strong>{$property_key}</strong></td>";
+			$object_properties .= "<td>{$type}</td>";
+			$object_properties .= "<td>{$property['description']}</td>";
+			$object_properties .= "<td>{$context}</td>";
+			$object_properties .= "<td>{$deprecated}</td>";
+			$object_properties .= "<td>{$enum}</td>";
+			$object_properties .= '</tr>';
+
+			if ($type == 'object' && isset($property['properties']) && !empty($property['properties'])) {
+				$object_properties .= $this->read_properties_table($property['properties'], $property_key);
 			}
 		}
-		$object_properties .= '</ol>';
+
+		$object_properties .= '</table>';
 
 		return $object_content . $object_properties;
 	}
 
-	private function read_properties( $properties ) {
+	private function read_properties_table($properties, $parentObjectName = '') {
 		$object_content = '';
-		if ( isset( $properties ) ) {
-			$object_content = '<ul>';
-			foreach ( $properties as $key => $value ) {
-				if ( $value['type'] == 'object' ) {
-					$object_content .= '<li><strong>' . $key . '</strong> (<span>' . $value['type'] . '</span>): <p>' . $value['description'] . '</p>';
-					$object_content .= $this->read_properties( $value['properties'] ) . '</li>';
-				} else {
-					if ( isset( $value['description'] ) ) {
-						$type           = is_array( $value['type'] ) ? implode( ' or ', $value['type'] ) : $value['type'];
-						$object_content .= '<li><strong>' . $key . '</strong> (<span>' . $type . '</span>): <p>' . $value['description'] . '</p></li>';
-					}
-				}
+
+		foreach ($properties as $key => $value) {
+			$type = is_array($value['type']) ? implode(' or ', $value['type']) : $value['type'];
+
+			$deprecated = isset( $value['deprecated'] ) ? 'Yes' : 'No';
+			$context    = isset( $value['context'] ) ? implode( ', ', $value['context'] ) : '';
+			$enum    = isset( $value['enum'] ) ? implode( ', ', $value['enum'] ) : '';
+
+			$object_content .= '<tr>';
+			$object_content .= "<td><strong>{$parentObjectName}.{$key}</strong></td>";
+			$object_content .= "<td>{$type}</td>";
+			$object_content .= "<td>{$value['description']}</td>";
+			$object_content .= "<td>{$context}</td>";
+			$object_content .= "<td>{$deprecated}</td>";
+			$object_content .= "<td>{$enum}</td>";
+			$object_content .= '</tr>';
+
+			if ($type == 'object' && isset($value['properties']) && !empty($value['properties'])) {
+				$object_content .= $this->read_properties_table($value['properties'], "{$parentObjectName}.{$key}");
 			}
-			$object_content .= '</ul>';
 		}
 
 		return $object_content;
