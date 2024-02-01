@@ -41,14 +41,14 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 		$basePath = rtrim( $basePath, '/' );
 
 		$swagger = array(
-			'openapi'    => '3.1.0',
-			'info'       => $this->get_info(),
-			'servers'    => $this->get_server(),
-			'paths'      => array(),
-			'components' => $this->get_default_components(),
-			'externalDocs'=>array(
-				'description'=>'BuddyBoss App Documentation',
-				'url' => 'https://buddyboss.gitbook.io/buddyboss-app/'
+			'openapi'      => '3.1.0',
+			'info'         => $this->get_info(),
+			'servers'      => $this->get_server(),
+			'paths'        => array(),
+			'components'   => $this->get_default_components(),
+			'externalDocs' => array(
+				'description' => 'BuddyBoss App Documentation',
+				'url'         => 'https://buddyboss.gitbook.io/buddyboss-app/'
 			)
 		);
 
@@ -167,7 +167,7 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 
 				$summary     = '';
 				$description = '';
-				$tags        = array('No Schema');
+				$tags        = array( 'No Schema' );
 				if ( isset( $openapi_schema['title'] ) ) {
 					$tags = array( $openapi_schema['title'] );
 				}
@@ -405,25 +405,26 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 		return $parameters;
 	}
 
-	private function prepare_object_content($schema, $parentObjectName = '') {
-		if (!isset($schema['tags']['name'])) {
+	private function prepare_object_content( $schema, $parentObjectName = '' ) {
+		if ( ! isset( $schema['tags']['name'] ) ) {
 			return '';
 		}
 
 		$object_content = "\n\n## {$schema['tags']['name']} schema \n\n {$schema['tags']['object_description']}";
 
-		$object_properties = '<table border="1"><tr><th>Property</th><th>Type</th><th>Description</th><th>Context</th><th>Deprecated</th><th>Enum</th></tr>';
+		$object_properties = '<table border="1"><tr><th>Property</th><th>Type</th><th>Description</th><th>Context</th><th>Deprecated</th><th>Enum</th><th>Dependency</th></tr>';
 
-		foreach ($schema['properties'] as $property_key => $property) {
-			if (isset($property['skip_openapi']) && true === $property['skip_openapi']) {
+		foreach ( $schema['properties'] as $property_key => $property ) {
+			if ( isset( $property['skip_openapi'] ) && true === $property['skip_openapi'] ) {
 				continue;
 			}
 
-			$type = is_array($property['type']) ? implode(' or ', $property['type']) : $property['type'];
+			$type = is_array( $property['type'] ) ? implode( ' or ', $property['type'] ) : $property['type'];
 
 			$deprecated = isset( $property['deprecated'] ) ? 'Yes' : '-';
 			$context    = isset( $property['context'] ) ? implode( ', ', $property['context'] ) : '';
-			$enum    = isset( $property['enum'] ) ? implode( ', ', $property['enum'] ) : '';
+			$enum       = isset( $property['enum'] ) ? implode( ', ', $property['enum'] ) : '';
+			$dependency = isset( $property['dependency'] ) ? implode( ', ', $property['dependency'] ) : '';
 
 			$object_properties .= '<tr>';
 			$object_properties .= "<td><strong>{$property_key}</strong></td>";
@@ -432,10 +433,11 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 			$object_properties .= "<td>{$context}</td>";
 			$object_properties .= "<td>{$deprecated}</td>";
 			$object_properties .= "<td>{$enum}</td>";
+			$object_properties .= "<td>{$dependency}</td>";
 			$object_properties .= '</tr>';
 
-			if ($type == 'object' && isset($property['properties']) && !empty($property['properties'])) {
-				$object_properties .= $this->read_properties_table($property['properties'], $property_key);
+			if ( $type == 'object' && isset( $property['properties'] ) && ! empty( $property['properties'] ) ) {
+				$object_properties .= $this->read_properties_table( $property['properties'], $property_key );
 			}
 		}
 
@@ -444,15 +446,16 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 		return $object_content . $object_properties;
 	}
 
-	private function read_properties_table($properties, $parentObjectName = '') {
+	private function read_properties_table( $properties, $parentObjectName = '' ) {
 		$object_content = '';
 
-		foreach ($properties as $key => $value) {
-			$type = is_array($value['type']) ? implode(' or ', $value['type']) : $value['type'];
+		foreach ( $properties as $key => $value ) {
+			$type = is_array( $value['type'] ) ? implode( ' or ', $value['type'] ) : $value['type'];
 
 			$deprecated = isset( $value['deprecated'] ) ? 'Yes' : '-';
 			$context    = isset( $value['context'] ) ? implode( ', ', $value['context'] ) : '';
-			$enum    = isset( $value['enum'] ) ? implode( ', ', $value['enum'] ) : '';
+			$enum       = isset( $value['enum'] ) ? implode( ', ', $value['enum'] ) : '';
+			$dependency = isset( $value['dependency'] ) ? implode( ', ', $value['dependency'] ) : '';
 
 			$object_content .= '<tr>';
 			$object_content .= "<td><strong>{$parentObjectName}.{$key}</strong></td>";
@@ -461,10 +464,11 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 			$object_content .= "<td>{$context}</td>";
 			$object_content .= "<td>{$deprecated}</td>";
 			$object_content .= "<td>{$enum}</td>";
+			$object_content .= "<td>{$dependency}</td>";
 			$object_content .= '</tr>';
 
-			if ($type == 'object' && isset($value['properties']) && !empty($value['properties'])) {
-				$object_content .= $this->read_properties_table($value['properties'], "{$parentObjectName}.{$key}");
+			if ( $type == 'object' && isset( $value['properties'] ) && ! empty( $value['properties'] ) ) {
+				$object_content .= $this->read_properties_table( $value['properties'], "{$parentObjectName}.{$key}" );
 			}
 		}
 
