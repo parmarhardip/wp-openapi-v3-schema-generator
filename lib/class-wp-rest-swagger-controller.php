@@ -421,7 +421,7 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 
 			$type = is_array($property['type']) ? implode(' or ', $property['type']) : $property['type'];
 
-			$deprecated = isset( $property['deprecated'] ) ? 'Yes' : 'No';
+			$deprecated = isset( $property['deprecated'] ) ? 'Yes' : '-';
 			$context    = isset( $property['context'] ) ? implode( ', ', $property['context'] ) : '';
 			$enum    = isset( $property['enum'] ) ? implode( ', ', $property['enum'] ) : '';
 
@@ -450,7 +450,7 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 		foreach ($properties as $key => $value) {
 			$type = is_array($value['type']) ? implode(' or ', $value['type']) : $value['type'];
 
-			$deprecated = isset( $value['deprecated'] ) ? 'Yes' : 'No';
+			$deprecated = isset( $value['deprecated'] ) ? 'Yes' : '-';
 			$context    = isset( $value['context'] ) ? implode( ', ', $value['context'] ) : '';
 			$enum    = isset( $value['enum'] ) ? implode( ', ', $value['enum'] ) : '';
 
