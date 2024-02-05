@@ -47,7 +47,7 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 			'paths'        => array(),
 			'components'   => $this->get_default_components(),
 			'externalDocs' => array(
-				'description' => 'BuddyBoss App Documentation',
+				'description' => 'This is extranal docs description for buddyboss app.',
 				'url'         => 'https://buddyboss.gitbook.io/buddyboss-app/'
 			)
 		);
@@ -165,9 +165,10 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 				}
 
 
-				$summary     = '';
-				$description = '';
-				$tags        = array( 'No Schema' );
+				$summary      = '';
+				$description  = '';
+				$tags         = array( 'No Schema' );
+				$externalDocs = '';
 				if ( isset( $openapi_schema['title'] ) ) {
 					$tags = array( $openapi_schema['title'] );
 				}
@@ -180,6 +181,9 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 					}
 					if ( isset( $endpointPart['openapi_data']['tags'] ) ) {
 						$tags = $endpointPart['openapi_data']['tags'];
+					}
+					if ( isset( $endpointPart['openapi_data']['externalDocs'] ) ) {
+						$externalDocs = $endpointPart['openapi_data']['externalDocs'];
 					}
 				}
 
@@ -196,10 +200,7 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 					'security'     => 'GET' !== $methodName ? $security : array(),
 					'responses'    => $response,
 					'operationId'  => ucfirst( strtolower( $methodName ) ) . $operationId,
-					"externalDocs" => array(
-						"description" => "Social group.",
-						"url"         => "#tag/Social-groups"
-					)
+					"externalDocs" => $externalDocs
 				);
 
 				if ( $methodName === 'POST' && ! empty( $requestBody ) ) {
@@ -412,6 +413,188 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 
 		$object_content = "\n\n## {$schema['tags']['name']} schema \n\n {$schema['tags']['object_description']}";
 
+		$object_properties = '<ol style="list-style-type: decimal; padding-left: 20px;">';
+
+		foreach ( $schema['properties'] as $property_key => $property ) {
+			if ( isset( $property['skip_openapi'] ) && true === $property['skip_openapi'] ) {
+				continue;
+			}
+
+			$type = is_array( $property['type'] ) ? implode( ' or ', $property['type'] ) : $property['type'];
+
+			$context    = isset( $property['context'] ) ? implode( ', ', $property['context'] ) : '';
+			$enum       = isset( $property['enum'] ) ? implode( ', ', $property['enum'] ) : '';
+			$dependency = isset( $property['dependency'] ) ? implode( ', ', $property['dependency'] ) : '';
+
+			$object_properties .= "<li style='margin-bottom: 10px;'><strong>{$property_key}</strong>";
+			$object_properties .= "<ul style='list-style-type: disc; margin-top: 5px;'>";
+			$object_properties .= "<li><strong>Type:</strong> {$type}</li>";
+			$object_properties .= "<li><strong>Description:</strong> {$property['description']}</li>";
+
+			if ( isset( $property['deprecated'] ) ) {
+				$object_properties .= "<li style='color: red;'><strong>Deprecated:</strong> Yes</li>";
+			}
+
+			if ( ! empty( $context ) ) {
+				$object_properties .= "<li><strong>Context:</strong> {$context}</li>";
+			}
+
+			if ( ! empty( $enum ) ) {
+				$object_properties .= "<li><strong>Enum:</strong> {$enum}</li>";
+			}
+
+			if ( ! empty( $dependency ) ) {
+				$object_properties .= "<li><strong>Dependency:</strong> {$dependency}</li>";
+			}
+			if ( $type == 'object' && isset( $property['properties'] ) && ! empty( $property['properties'] ) ) {
+				$object_properties .= "<li><strong>Properties:</strong>";
+				$object_properties .= $this->read_properties_list( $property['properties'], $property_key );
+				$object_properties .= "</li>";
+			}
+			$object_properties .= "</ul></li>";
+		}
+
+		$object_properties .= '</ol>';
+
+		return $object_content . $object_properties;
+	}
+
+	private function read_properties_list( $properties, $parentObjectName = '' ) {
+		$object_content = '<ul style="list-style-type: circle; margin-top: 5px;">';
+
+		foreach ( $properties as $key => $value ) {
+			$type = is_array( $value['type'] ) ? implode( ' or ', $value['type'] ) : $value['type'];
+
+			$context    = isset( $value['context'] ) ? implode( ', ', $value['context'] ) : '';
+			$enum       = isset( $value['enum'] ) ? implode( ', ', $value['enum'] ) : '';
+			$dependency = isset( $value['dependency'] ) ? implode( ', ', $value['dependency'] ) : '';
+
+			$object_content .= "<li style='margin-bottom: 10px;'><strong>{$key}</strong>";
+			$object_content .= "<ul style='list-style-type: disc; margin-top: 5px;'>";
+			$object_content .= "<li><strong>Type:</strong> {$type}</li>";
+			$object_content .= "<li><strong>Description:</strong> {$value['description']} </li>";
+
+			if ( isset( $value['deprecated'] ) ) {
+				$object_content .= "<li style='color: red;'><strong>Deprecated:</strong> Yes</li>";
+			}
+
+			if ( ! empty( $context ) ) {
+				$object_content .= "<li><strong>Context:</strong> {$context}</li>";
+			}
+
+			if ( ! empty( $enum ) ) {
+				$object_content .= "<li><strong>Enum:</strong> {$enum}</li>";
+			}
+
+			if ( ! empty( $dependency ) ) {
+				$object_content .= "<li><strong>Dependency:</strong> {$dependency}</li>";
+			}
+
+			if ( $type == 'object' && isset( $value['properties'] ) && ! empty( $value['properties'] ) ) {
+				$object_content .= "<li><strong>Properties:</strong>";
+				$object_content .= $this->read_properties_list( $value['properties'], $key );
+				$object_content .= "</li>";
+			}
+			$object_content .= "</ul></li>";
+		}
+
+		$object_content .= '</ul>';
+
+		return $object_content;
+	}
+
+
+//	private function prepare_object_content( $schema, $parentObjectName = '' ) {
+//		if ( ! isset( $schema['tags']['name'] ) ) {
+//			return '';
+//		}
+//
+//		$object_content = "\n\n## {$schema['tags']['name']} schema \n\n {$schema['tags']['object_description']}";
+//
+//		$object_properties = '<ul>';
+//
+//		foreach ( $schema['properties'] as $property_key => $property ) {
+//			if ( isset( $property['skip_openapi'] ) && true === $property['skip_openapi'] ) {
+//				continue;
+//			}
+//
+//			$type = is_array( $property['type'] ) ? implode( ' or ', $property['type'] ) : $property['type'];
+//
+//			$context    = isset( $property['context'] ) ? implode( ', ', $property['context'] ) : '';
+//			$enum       = isset( $property['enum'] ) ? implode( ', ', $property['enum'] ) : '';
+//			$dependency = isset( $property['dependency'] ) ? implode( ', ', $property['dependency'] ) : '';
+//
+//			$object_properties .= "<li><strong>{$property_key}</strong>:";
+//			$object_properties .= "<ul>";
+//			$object_properties .= "<li><strong>Type:</strong> {$type}</li>";
+//			$object_properties .= "<li><strong>Description:</strong> {$property['description']}</li>";
+//			$object_properties .= "<li><strong>Context:</strong> {$context}</li>";
+//			if ( isset( $property['deprecated'] ) ) {
+//				$object_properties .= "<li><strong>Deprecated:</strong> Yes</li>";
+//			}
+//			if ( ! empty( $enum ) ) {
+//				$object_properties .= "<li><strong>Enum:</strong> {$enum}</li>";
+//			}
+//			if ( ! empty( $dependency ) ) {
+//				$object_properties .= "<li><strong>Dependency:</strong> {$dependency}</li>";
+//			}
+//			$object_properties .= "</ul></li>";
+//
+//			if ( $type == 'object' && isset( $property['properties'] ) && ! empty( $property['properties'] ) ) {
+//				$object_properties .= $this->read_properties_list( $property['properties'], $property_key );
+//			}
+//		}
+//
+//		$object_properties .= '</ul>';
+//
+//		return $object_content . $object_properties;
+//	}
+//
+//	private function read_properties_list( $properties, $parentObjectName = '' ) {
+//		$object_content = '<ul>';
+//
+//		foreach ( $properties as $key => $value ) {
+//			$type = is_array( $value['type'] ) ? implode( ' or ', $value['type'] ) : $value['type'];
+//
+//			$deprecated = isset( $value['deprecated'] ) ? 'Yes' : '-';
+//			$context    = isset( $value['context'] ) ? implode( ', ', $value['context'] ) : '';
+//			$enum       = isset( $value['enum'] ) ? implode( ', ', $value['enum'] ) : '';
+//			$dependency = isset( $value['dependency'] ) ? implode( ', ', $value['dependency'] ) : '';
+//
+//			$object_content .= "<li><strong>{$parentObjectName}.{$key}</strong>:";
+//			$object_content .= "<ul>";
+//			$object_content .= "<li><strong>Type:</strong> {$type}</li>";
+//			$object_content .= "<li><strong>Description:</strong> {$value['description']}</li>";
+//			$object_content .= "<li><strong>Context:</strong> {$context}</li>";
+//			if ( $deprecated != '-' ) {
+//				$object_content .= "<li><strong>Deprecated:</strong> {$deprecated}</li>";
+//			}
+//			if ( ! empty( $enum ) ) {
+//				$object_content .= "<li><strong>Enum:</strong> {$enum}</li>";
+//			}
+//			if ( ! empty( $dependency ) ) {
+//				$object_content .= "<li><strong>Dependency:</strong> {$dependency}</li>";
+//			}
+//			$object_content .= "</ul></li>";
+//
+//			if ( $type == 'object' && isset( $value['properties'] ) && ! empty( $value['properties'] ) ) {
+//				$object_content .= $this->read_properties_list( $value['properties'], "{$parentObjectName}.{$key}" );
+//			}
+//		}
+//
+//		$object_content .= '</ul>';
+//
+//		return $object_content;
+//	}
+
+
+	private function _prepare_object_content( $schema, $parentObjectName = '' ) {
+		if ( ! isset( $schema['tags']['name'] ) ) {
+			return '';
+		}
+
+		$object_content = "\n\n## {$schema['tags']['name']} schema \n\n {$schema['tags']['object_description']}";
+
 		$object_properties = '<table border="1"><tr><th>Property</th><th>Type</th><th>Description</th><th>Context</th><th>Deprecated</th><th>Enum</th><th>Dependency</th></tr>';
 
 		foreach ( $schema['properties'] as $property_key => $property ) {
@@ -446,7 +629,7 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 		return $object_content . $object_properties;
 	}
 
-	private function read_properties_table( $properties, $parentObjectName = '' ) {
+	private function _read_properties_table( $properties, $parentObjectName = '' ) {
 		$object_content = '';
 
 		foreach ( $properties as $key => $value ) {
@@ -753,6 +936,11 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 //			if ( ! empty( $prop['items']['context'] ) ) {
 //				unset( $prop['items']['context'] );
 //			}
+
+
+
+
+
 			if ( isset( $prop['default'] ) && is_array( $prop['default'] ) ) {
 				unset( $prop['default'] );
 			}
@@ -794,12 +982,14 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 				unset( $prop['default'] );
 			}
 			//--
-			if ( $prop['type'] == 'object' && ( ! isset( $prop['properties'] ) || empty( $prop['properties'] ) ) ) {
-				if ( ! empty( $prop['items'] ) ) {
-					unset( $prop['items'] );
-				}
-				$prop['properties'] = array( 'id' => array( 'type' => 'integer' ) );
-			}
+
+//			if ( $prop['type'] == 'object' && ( ! isset( $prop['properties'] ) || empty( $prop['properties'] ) ) ) {
+//				if ( ! empty( $prop['items'] ) ) {
+//					unset( $prop['items'] );
+//				}
+//				//$prop['properties'] = array( 'id' => array( 'type' => 'integer' ) );
+//			}
+
 			if ( $prop['type'] == 'array' ) {
 				if ( isset( $prop['items']['type'] ) && $prop['items']['type'] === 'object' ) {
 					$prop['items'] = $this->schemaIntoDefinition( $prop['items'] );
@@ -831,6 +1021,8 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 			if ( isset( $prop['readonly'] ) ) {
 				unset( $prop['readonly'] );
 			}
+
+
 //			if ( isset( $prop['context'] ) ) {
 //				unset( $prop['context'] );
 //			}
