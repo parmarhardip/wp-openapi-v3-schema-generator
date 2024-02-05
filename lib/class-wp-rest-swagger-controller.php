@@ -446,6 +446,9 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 			if ( ! empty( $dependency ) ) {
 				$object_properties .= "<li><strong>Dependency:</strong> {$dependency}</li>";
 			}
+			if ( isset( $property['readonly'] ) ) {
+				$object_properties .= "<li><strong>Read-only:</strong> Yes</li>";
+			}
 			if ( $type == 'object' && isset( $property['properties'] ) && ! empty( $property['properties'] ) ) {
 				$object_properties .= "<li><strong>Properties:</strong>";
 				$object_properties .= $this->read_properties_list( $property['properties'], $property_key );
@@ -488,6 +491,10 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 
 			if ( ! empty( $dependency ) ) {
 				$object_content .= "<li><strong>Dependency:</strong> {$dependency}</li>";
+			}
+
+			if ( isset( $value['readonly'] ) ) {
+				$object_content .= "<li><strong>Read-only:</strong> Yes</li>";
 			}
 
 			if ( $type == 'object' && isset( $value['properties'] ) && ! empty( $value['properties'] ) ) {
@@ -877,9 +884,9 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 				if ( isset( $t['required'] ) ) {
 					unset( $properties[ $key ]['required'] );
 				}
-				if ( isset( $t['readonly'] ) ) {
-					unset( $properties[ $key ] );
-				}
+//				if ( isset( $t['readonly'] ) ) {
+//					unset( $properties[ $key ] );
+//				}
 			}
 		}
 
@@ -900,9 +907,9 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 		if ( ! empty( $schema['links'] ) ) {
 			unset( $schema['links'] );
 		}
-		if ( ! empty( $schema['readonly'] ) ) {
-			unset( $schema['readonly'] );
-		}
+//		if ( ! empty( $schema['readonly'] ) ) {
+//			unset( $schema['readonly'] );
+//		}
 //		if ( ! empty( $schema['context'] ) ) {
 //			unset( $schema['context'] );
 //		}
@@ -930,15 +937,12 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 //			if ( ! empty( $prop['context'] ) ) {
 //				unset( $prop['context'] );
 //			}
-			if ( ! empty( $prop['readonly'] ) ) {
-				unset( $prop['readonly'] );
-			}
+//			if ( ! empty( $prop['readonly'] ) ) {
+//				unset( $prop['readonly'] );
+//			}
 //			if ( ! empty( $prop['items']['context'] ) ) {
 //				unset( $prop['items']['context'] );
 //			}
-
-
-
 
 
 			if ( isset( $prop['default'] ) && is_array( $prop['default'] ) ) {
@@ -1018,9 +1022,9 @@ class WP_REST_Swagger_Controller extends WP_REST_Controller {
 			if ( isset( $prop['required'] ) ) {
 				unset( $prop['required'] );
 			}
-			if ( isset( $prop['readonly'] ) ) {
-				unset( $prop['readonly'] );
-			}
+//			if ( isset( $prop['readonly'] ) ) {
+//				unset( $prop['readonly'] );
+//			}
 
 
 //			if ( isset( $prop['context'] ) ) {
